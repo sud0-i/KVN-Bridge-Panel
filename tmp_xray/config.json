@@ -1,0 +1,89 @@
+{
+  "api": {
+    "services": [
+      "StatsService"
+    ],
+    "tag": "api"
+  },
+  "inbounds": [
+    {
+      "port": 443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "email": "70cfe52b-b940-4bd1-92a5-833f80837597",
+            "flow": "xtls-rprx-vision",
+            "id": "70cfe52b-b940-4bd1-92a5-833f80837597"
+          },
+          {
+            "email": "313c0ed4-c7ce-4d59-a162-80bd0f8aca2a",
+            "flow": "xtls-rprx-vision",
+            "id": "313c0ed4-c7ce-4d59-a162-80bd0f8aca2a"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "realitySettings": {
+          "dest": "www.microsoft.com:443",
+          "privateKey": "test_private_key_123",
+          "serverNames": [
+            "www.microsoft.com"
+          ],
+          "shortIds": [
+            ""
+          ],
+          "show": false,
+          "xver": 0
+        },
+        "security": "reality"
+      }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": 10085,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "address": "127.0.0.1"
+      },
+      "tag": "api"
+    }
+  ],
+  "log": {
+    "access": "/var/log/xray/access.log",
+    "error": "/var/log/xray/error.log",
+    "loglevel": "warning"
+  },
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "tag": "direct"
+    }
+  ],
+  "policy": {
+    "levels": {
+      "0": {
+        "statsUserDownlink": true,
+        "statsUserUplink": true
+      }
+    },
+    "system": {
+      "statsInboundDownlink": true,
+      "statsInboundUplink": true
+    }
+  },
+  "routing": {
+    "rules": [
+      {
+        "inboundTag": [
+          "api"
+        ],
+        "outboundTag": "api",
+        "type": "field"
+      }
+    ]
+  },
+  "stats": {}
+}
