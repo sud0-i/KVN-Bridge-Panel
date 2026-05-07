@@ -55,6 +55,22 @@ const addUser = async () => {
   }
 }
 
+const toggleUserStatus = async (user) => {
+  const newStatus = user.Status === 'active' ? 'blocked' : 'active'
+  await fetch(`/api/users/${user.ID}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: newStatus })
+  })
+  fetchUsers()
+}
+
+const deleteUser = async (id) => {
+  if (!confirm('Удалить пользователя безвозвратно?')) return
+  await fetch(`/api/users/${id}`, { method: 'DELETE' })
+  fetchUsers()
+}
+
 // ================= ФУНКЦИИ НОД =================
 const fetchNodes = async () => {
   loadingNodes.value = true
@@ -146,6 +162,7 @@ onMounted(() => {
               <th class="py-3 font-medium">Лимит IP</th>
               <th class="py-3 font-medium">Трафик</th>
               <th class="py-3 font-medium">Статус</th>
+              <th class="py-3 font-medium">Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -153,16 +170,38 @@ onMounted(() => {
               <td colspan="4" class="py-8 text-center text-gray-500">Нет пользователей. Создайте первого!</td>
             </tr>
             <tr v-for="user in users" :key="user.ID" class="border-b border-gray-700/50 hover:bg-gray-700/20 transition-colors">
-              <td class="py-3 font-medium">{{ user.Name }}</td>
-              <td class="py-3">{{ user.IPLimit === 0 ? 'Безлимит' : user.IPLimit }}</td>
-              <td class="py-3 text-sm text-gray-400">
-                <span class="text-green-400">↓{{ (user.TrafficDown / 1073741824).toFixed(2) }} GB</span> / 
-                <span class="text-blue-400">↑{{ (user.TrafficUp / 1073741824).toFixed(2) }} GB</span>
-              </td>
-              <td class="py-3">
-                <span class="bg-green-500/20 text-green-400 px-2 py-1 rounded-full text-xs font-medium">{{ user.Status }}</span>
-              </td>
-            </tr>
+  <td class="py-3 font-medium">{{ user.Name }}</td>
+  <td class="py-3">{{ user.IPLimit === 0 ? 'Безлимит' : user.IPLimit }}</td>
+  <td class="py-3 text-sm text-gray-400">
+    <span class="text-green-400">↓{{ (user.TrafficDown / 1073741824).toFixed(2) }} GB</span> / 
+    <span class="text-blue-400">↑{{ (user.TrafficUp / 1073741824).toFixed(2) }} GB</span>
+  </td>
+  <td class="py-3">
+    <span :class="['px-2 py-1 rounded-full text-xs font-medium', 
+      user.Status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400']">
+      {{ user.Status === 'active' ? 'Активен' : 'Заблокирован' }}
+    </span>
+  </td>
+
+  <td class="py-3">
+    <div class="flex gap-3">
+      <button @click="toggleUserStatus(user)" 
+        :title="user.Status === 'active' ? 'Заблокировать' : 'Разблокировать'"
+        class="text-gray-400 hover:text-orange-400 transition-colors">
+        <span v-if="user.Status === 'active'">⏸️</span>
+        <span v-else>▶️</span>
+      </button>
+
+      <button @click="copySubLink(user.ID)" title="Скопировать ссылку" class="text-gray-400 hover:text-blue-400 transition-colors">
+        🔗
+      </button>
+
+      <button @click="deleteUser(user.ID)" title="Удалить" class="text-gray-400 hover:text-red-500 transition-colors">
+        🗑️
+      </button>
+    </div>
+  </td>
+</tr>
           </tbody>
         </table>
       </div>

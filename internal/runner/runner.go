@@ -15,8 +15,11 @@ func DeployNode(nodeIP, nodeType, rootPassword string, privKey string) {
 
 	// Формируем команду запуска. Обрати внимание на запятую после IP — это нужно Ansible для работы без inventory-файла
 	cmd := exec.Command("ansible-playbook", "-i", nodeIP+",", "ansible/deploy_node.yml",
-		"-e", "ansible_user=root",
-		"-e", "ansible_password="+rootPassword)
+    "-e", "ansible_user=root",
+    "-e", "ansible_password="+rootPassword,
+    "-e", "master_url=http://ТВОЙ_IP_МАСТЕРА:8080", // Укажи IP сервера с панелью
+    "-e", "priv_key="+privKey,
+    "-e", "node_role="+nodeType)
 
 	// Перехватываем логи (чтобы видеть их в консоли Мастера)
 	var out bytes.Buffer

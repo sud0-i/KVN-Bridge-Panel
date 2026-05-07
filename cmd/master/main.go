@@ -131,6 +131,31 @@ func main() {
 		})
 	})
 
+	// ИЗМЕНЕНИЕ СТАТУСА (Блокировка/Разблокировка)
+	api.PATCH("/users/:id/status", func(c echo.Context) error {
+		id := c.Param("id")
+		var req struct {
+			Status string `json:"status"` // "active" или "blocked"
+		}
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "bad format"})
+		}
+
+		if err := db.DB.Model(&models.User{}).Where("id = ?", id).Update("status", req.Status).Error; err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "DB error"})
+		}
+		return c.NoContent(http.StatusOK)
+	})
+
+	// УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ
+	api.DELETE("/users/:id", func(c echo.Context) error {
+		id := c.Param("id")
+		if err := db.DB.Where("id = ?", id).Delete(&models.User{}).Error; err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "DB error"})
+		}
+		return c.NoContent(http.StatusNoContent)
+	})
+
 	// --- Технические эндпоинты для Агентов ---
 
 	// 1. СИНХРОНИЗАЦИЯ: Агент запрашивает актуальные данные

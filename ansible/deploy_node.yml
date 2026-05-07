@@ -1,71 +1,78 @@
-# ---
-# - name: Deploy VPN Node (RU/EU)
-#   hosts: all
-#   become: yes
-#   gather_facts: no # Ускоряет выполнение, не собирая лишнюю инфу об ОС
-
-#   tasks:
-#     - name: Установка базовых зависимостей
-#       apt:
-#         name:
-#           - curl
-#           - jq
-#           - openssl
-#           - ufw
-#           - gnupg
-#         state: present
-#         update_cache: yes
-
-#     - name: Установка Xray-core через официальный скрипт
-#       shell: bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
-#       args:
-#         creates: /usr/local/bin/xray # Ansible пропустит шаг, если бинарник уже есть
-
-#     - name: Фикс прав Xray (User=root)
-#       replace:
-#         path: /etc/systemd/system/xray.service
-#         regexp: '^User=nobody'
-#         replace: 'User=root'
-
-#     - name: Создание рабочих директорий
-#       file:
-#         path: "{{ item }}"
-#         state: directory
-#         owner: root
-#         group: root
-#         mode: '0755'
-#       loop:
-#         - /usr/local/etc/xray
-#         - /var/log/xray
-
-#     - name: Перезагрузка systemd и старт Xray
-#       systemd:
-#         daemon_reload: yes
-#         name: xray
-#         state: restarted
-#         enabled: yes
-
-#     - name: Настройка UFW (Firewall)
-#       ufw:
-#         rule: allow
-#         port: "{{ item }}"
-#         proto: tcp
-#       loop:
-#         - "22"
-#         - "443"
-#         - "4433"
-#         - "5000"
-#       notify: Enable UFW
-
-#   handlers:
-#     - name: Enable UFW
-#       ufw:
-#         state: enabled
 ---
-- name: Fake Deploy for Testing
+- name: Full Deploy VPN Node
   hosts: all
+  become: yes
   gather_facts: no
+
+  vars:
+    # Эти переменные прилетят из Go (runner.go)
+    master_url: ""
+    priv_key: ""
+    node_role: ""
+
   tasks:
-    - name: Имитация установки пакетов (ждем 5 секунд)
-      command: sleep 5
-      delegate_to: localhost
+    - name: Установка зависимостей
+      apt:
+        name: [curl, jq, ufw]
+        state: present
+        update_cache: yes
+
+    - name: Установка Xray
+      shell: bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+
+    - name: Создание папок для Агента
+      file:
+        path: /etc/vpn-agent
+        state: directory
+        mode: '0755'
+
+    - name: Копирование бинарника Агента
+      # Мы предполагаем, что ты скомпилировал его заранее в папку build/
+      copy:
+        src: ../build/agent_linux_amd64
+        dest: /usr/local/bin/vpn-agent
+        mode: '0755'
+
+    - name: Создание конфигурации .env
+      copy:
+        dest: /etc/vpn-agent/.env
+        content: |
+          MASTER_URL={{ master_url }}
+          PRIVATE_KEY={{ priv_key }}
+          NODE_ROLE={{ node_role }}
+        mode: '0600'
+
+    - name: Настройка systemd службы для Агента
+      copy:
+        dest: /etc/systemd/system/vpn-agent.service
+        content: |
+          [Unit]
+          Description=VPN Cluster Agent
+          After=network.target
+
+          [Service]
+          Type=simple
+          WorkingDirectory=/etc/vpn-agent
+          ExecStart=/usr/local/bin/vpn-agent
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Запуск служб
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+        enabled: yes
+        daemon_reload: yes
+      loop:
+        - xray
+        - vpn-agent
+
+    - name: Настройка фаервола
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop: ['22', '443', '10085']
