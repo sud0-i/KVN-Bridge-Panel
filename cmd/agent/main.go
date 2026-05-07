@@ -2,16 +2,19 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	statscmd "github.com/xtls/xray-core/app/stats/command"
 )
 
 // Структуры, которые мы ожидаем получить от Мастера
@@ -35,23 +38,25 @@ type SyncResponse struct {
 
 func main() {
 	// 1. Загружаем переменные из .env файла
-	// (Ansible создаст этот файл при деплое сервера)
 	if err := godotenv.Load(); err != nil {
 		log.Println("⚠️ Файл .env не найден, используем системные переменные")
 	}
 
-	masterURL := os.Getenv("MASTER_URL") // Например: http://192.168.1.100:8080
+	// Читаем переменные ТОЛЬКО ОДИН РАЗ:
+	masterURL := os.Getenv("MASTER_URL")
 	privKey := os.Getenv("PRIVATE_KEY")
-	role := os.Getenv("NODE_ROLE") // ru_bridge или eu_exit
+	role := os.Getenv("NODE_ROLE")
+	apiKey := os.Getenv("CLUSTER_API_KEY")
 
-	if masterURL == "" || privKey == "" {
-		log.Fatal("❌ Ошибка: MASTER_URL или PRIVATE_KEY не заданы!")
+	// Проверяем, что всё на месте
+	if masterURL == "" || privKey == "" || apiKey == "" {
+		log.Fatal("❌ Ошибка: MASTER_URL, PRIVATE_KEY или CLUSTER_API_KEY не заданы!")
 	}
 
 	log.Printf("🤖 Агент запущен. Роль: %s. Мастер: %s", role, masterURL)
 
 	// 2. Делаем первую синхронизацию при старте
-	syncWithMaster(masterURL, privKey, role)
+	syncWithMaster(masterURL, privKey, role, apiKey)
 
 	// 3. Запускаем фоновые задачи (Горутины)
 
@@ -59,7 +64,7 @@ func main() {
 	go func() {
 		for {
 			time.Sleep(3 * time.Minute)
-			syncWithMaster(masterURL, privKey, role)
+			syncWithMaster(masterURL, privKey, role, apiKey)
 		}
 	}()
 
@@ -67,7 +72,7 @@ func main() {
 	go func() {
 		for {
 			time.Sleep(1 * time.Minute)
-			sendStatsToMaster(masterURL)
+			sendStatsToMaster(masterURL, apiKey)
 		}
 	}()
 
@@ -76,13 +81,22 @@ func main() {
 }
 
 // --- ФУНКЦИЯ СИНХРОНИЗАЦИИ И ОБНОВЛЕНИЯ КОНФИГА ---
-func syncWithMaster(masterURL, privKey, role string) {
-	resp, err := http.Get(fmt.Sprintf("%s/api/sync", masterURL))
+func syncWithMaster(masterURL, privKey, role string, apiKey string) {
+	req, _ := http.NewRequest("GET", fmt.Sprintf("%s/api/sync", masterURL), nil)
+	req.Header.Set("X-API-Key", apiKey) // Подставляем ключ
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("❌ Ошибка связи с мастером: %v", err)
 		return
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("❌ Мастер отклонил запрос (код %d). Проверьте CLUSTER_API_KEY.", resp.StatusCode)
+		return
+	}
 
 	var data SyncResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
@@ -107,37 +121,31 @@ func syncWithMaster(masterURL, privKey, role string) {
 }
 
 // --- ФУНКЦИЯ СБОРА И ОТПРАВКИ СТАТИСТИКИ ---
-// sendStatsToMaster опрашивает локальный Xray и отправляет данные на Мастер
-func sendStatsToMaster(masterURL string) {
-	// 1. Вызываем CLI команду Xray
-	// В Codespaces у нас нет установленного Xray, поэтому мы обрабатываем ошибку
-	cmd := exec.Command("xray", "api", "statsquery", "-server=127.0.0.1:10085")
-	out, err := cmd.Output()
-
+func sendStatsToMaster(masterURL string, apiKey string) {
+	// 1. Подключаемся к gRPC API Xray
+	// Используем insecure.NewCredentials(), так как это локальное соединение внутри сервера
+	conn, err := grpc.Dial("127.0.0.1:10085", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Printf("⚠️ Xray не найден или недоступен (локальный тест). Пропуск реального сбора.")
-		// Для локального теста оставляем отправку фейковых данных (чтобы интерфейс работал)
-		sendFakeStats(masterURL)
+		log.Printf("⚠️ Ошибка подключения к Xray gRPC (локальный тест).")
+		sendFakeStats(masterURL, apiKey)
+		return
+	}
+	defer conn.Close()
+
+	client := statscmd.NewStatsServiceClient(conn)
+
+	// 2. Запрашиваем статистику с обнулением
+	resp, err := client.QueryStats(context.Background(), &statscmd.QueryStatsRequest{
+		Pattern: "",   // Пустой паттерн означает "отдай всё"
+		Reset_:  true, // Сбрасываем счетчик в самом Xray после чтения!
+	})
+	if err != nil {
+		log.Printf("⚠️ Не удалось получить статистику от Xray: %v", err)
+		sendFakeStats(masterURL, apiKey) // Опять же, для теста в Codespaces
 		return
 	}
 
-	// 2. Парсим ответ от Xray
-	// Ответ выглядит так: {"stat": [{"name": "user>>>UUID>>>traffic>>>downlink", "value": "12345"}]}
-	type XrayResponse struct {
-		Stat []struct {
-			Name  string `json:"name"`
-			Value int64  `json:"value,string"` // Xray иногда отдает числа как строки, эта магия Go всё исправит
-		} `json:"stat"`
-	}
-
-	var xrayData XrayResponse
-	if err := json.Unmarshal(out, &xrayData); err != nil {
-		log.Printf("❌ Ошибка парсинга статистики Xray: %v", err)
-		return
-	}
-
-	// 3. Агрегируем трафик (т.к. up и down приходят отдельными строками)
-	// Ключ - email (UUID), Значение - структура с up/down
+	// 3. Агрегируем трафик
 	type UserStat struct {
 		Email string `json:"email"`
 		Up    int64  `json:"up"`
@@ -145,9 +153,9 @@ func sendStatsToMaster(masterURL string) {
 	}
 	statsMap := make(map[string]*UserStat)
 
-	for _, s := range xrayData.Stat {
-		parts := strings.Split(s.Name, ">>>")
-		// Нас интересует только пользовательский трафик: user>>>[email]>>>traffic>>>[downlink/uplink]
+	for _, stat := range resp.Stat {
+		// Xray отдает имена в формате: user>>>UUID>>>traffic>>>downlink
+		parts := strings.Split(stat.Name, ">>>")
 		if len(parts) == 4 && parts[0] == "user" {
 			email := parts[1]
 			direction := parts[3]
@@ -158,48 +166,61 @@ func sendStatsToMaster(masterURL string) {
 
 			switch direction {
 			case "downlink":
-				statsMap[email].Down += s.Value
+				statsMap[email].Down += stat.Value
 			case "uplink":
-				statsMap[email].Up += s.Value
+				statsMap[email].Up += stat.Value
 			}
 		}
 	}
 
-	// 4. Преобразуем мапу в плоский массив для отправки на Мастер
 	var finalStats []UserStat
 	for _, stat := range statsMap {
 		finalStats = append(finalStats, *stat)
 	}
 
-	// Если никто ничего не скачал, не дергаем Мастер
 	if len(finalStats) == 0 {
-		return
+		return // Если трафика не было, не дергаем Мастер
 	}
 
-	// 5. Отправляем на Мастер
+	// 4. Отправляем на Мастер
 	body, _ := json.Marshal(finalStats)
-	resp, err := http.Post(fmt.Sprintf("%s/api/stats", masterURL), "application/json", bytes.NewBuffer(body))
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/api/stats", masterURL), bytes.NewBuffer(body))
+	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+	httpResp, err := httpClient.Do(req)
 	if err != nil {
-		log.Printf("❌ Ошибка отправки статистики: %v", err)
+		log.Printf("❌ Ошибка связи с мастером при отправке статистики: %v", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer httpResp.Body.Close()
+
+	if httpResp.StatusCode != http.StatusOK {
+		log.Printf("❌ Мастер отклонил статистику (код %d)", httpResp.StatusCode)
+		return
+	}
 
 	log.Printf("📊 Статистика успешно отправлена на Мастер (юзеров: %d)", len(finalStats))
 }
 
-// Заглушка для локального тестирования в Codespaces
-func sendFakeStats(masterURL string) {
-	// Берем фейковый UUID (замени на реальный из своей базы, если хочешь видеть анимацию в админке)
+// Заглушка для локального тестирования
+func sendFakeStats(masterURL string, apiKey string) {
 	stats := []map[string]interface{}{
 		{
-			"email": "СЮДА_ВСТАВИТЬ_UUID_ЮЗЕРА_ДЛЯ_ТЕСТА",
+			"email": "313c0ed4-c7ce-4d59-a162-80bd0f8aca2a", // Не забудь вернуть сюда UUID из базы
 			"up":    1024 * 1024 * 5,
 			"down":  1024 * 1024 * 50,
 		},
 	}
 	body, _ := json.Marshal(stats)
-	http.Post(fmt.Sprintf("%s/api/stats", masterURL), "application/json", bytes.NewBuffer(body))
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/api/stats", masterURL), bytes.NewBuffer(body))
+	req.Header.Set("X-API-Key", apiKey) // Добавили ключ и сюда!
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	client.Do(req)
 }
 
 // updateXrayConfig собирает правильный config.json для Xray

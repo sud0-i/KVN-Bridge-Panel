@@ -12,14 +12,14 @@
       "settings": {
         "clients": [
           {
-            "email": "70cfe52b-b940-4bd1-92a5-833f80837597",
-            "flow": "xtls-rprx-vision",
-            "id": "70cfe52b-b940-4bd1-92a5-833f80837597"
-          },
-          {
             "email": "313c0ed4-c7ce-4d59-a162-80bd0f8aca2a",
             "flow": "xtls-rprx-vision",
             "id": "313c0ed4-c7ce-4d59-a162-80bd0f8aca2a"
+          },
+          {
+            "email": "a14d92fd-6b5b-424b-93b3-aad9ef297c21",
+            "flow": "xtls-rprx-vision",
+            "id": "a14d92fd-6b5b-424b-93b3-aad9ef297c21"
           }
         ],
         "decryption": "none"

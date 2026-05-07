@@ -6,10 +6,16 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
-	"net/http"
-	"strings"
 
+	//"math/big"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/db"
@@ -20,10 +26,42 @@ import (
 )
 
 func main() {
-	// 1. Подключаемся к базе (файл core.db создастся в корне проекта)
-	db.InitDB("core.db")
 
-	// 2. Инициализируем веб-фреймворк Echo
+	// // --- FIRST-RUN BOOTSTRAP ---
+	// if _, err := os.Stat(".env"); os.IsNotExist(err) {
+	// 	log.Println("🛠️ [SETUP] Файл .env не найден. Запускаем First-Run инициализацию...")
+
+	// 	adminPass := generateRandomString(12)
+	// 	jwtSecret := generateRandomString(32)
+	// 	clusterApiKey := generateRandomString(32) // Добавили генерацию API_KEY для агентов
+
+	// 	envContent := fmt.Sprintf("ADMIN_PASSWORD=%s\nJWT_SECRET=%s\nCLUSTER_API_KEY=%s\n", adminPass, jwtSecret, clusterApiKey)
+	// 	os.WriteFile(".env", []byte(envContent), 0600)
+
+	// 	log.Println("=========================================================")
+	// 	log.Println("🎉 FIRST RUN DETECTED. Система успешно инициализирована!")
+	// 	log.Printf("🔑 Ваш временный пароль: %s\n", adminPass)
+	// 	log.Println("⚠️ ОБЯЗАТЕЛЬНО сохраните его! Он понадобится для входа.")
+	// 	log.Println("=========================================================")
+	// }
+
+	// 1. Загружаем переменные окружения (в Docker они прокинутся из .env файла)
+	if err := godotenv.Load(); err != nil {
+		log.Println("ℹ️ Файл .env не найден, используем переменные окружения системы")
+	}
+
+	// Проверяем, что критически важные переменные заданы
+	if os.Getenv("ADMIN_PASSWORD") == "" || os.Getenv("JWT_SECRET") == "" {
+		log.Fatal("❌ Ошибка: ADMIN_PASSWORD или JWT_SECRET не заданы! Проверьте конфигурацию.")
+	}
+
+	// 2. Инициализация БД
+	dbPath := "data/db.sqlite"
+
+	// Передаем dbPath в инициализацию, а не старое имя файла
+	db.InitDB(dbPath)
+
+	// 3. Инициализируем веб-фреймворк Echo
 	e := echo.New()
 
 	// Полезные мидлвари (логирование запросов, защита от падений и CORS для фронтенда)
@@ -33,6 +71,75 @@ func main() {
 
 	// 3. Создаем группу роутов для API
 	api := e.Group("/api")
+
+	api.POST("/login", func(c echo.Context) error {
+		var req struct {
+			Password string `json:"password"`
+		}
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Неверный формат"})
+		}
+
+		expectedPass := os.Getenv("ADMIN_PASSWORD")
+		log.Printf("🔐 Попытка входа. Введено: '%s', В базе: '%s'", req.Password, expectedPass) // Дебаг
+
+		if req.Password != expectedPass || expectedPass == "" {
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Неверный пароль"})
+		}
+
+		// Пароль верный -> Выдаем JWT токен на 24 часа
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"admin": true,
+			"exp":   time.Now().Add(time.Hour * 24).Unix(),
+		})
+
+		jwtSecret := []byte(os.Getenv("JWT_SECRET"))
+		tokenString, err := token.SignedString(jwtSecret)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Ошибка генерации токена"})
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{"token": tokenString})
+	})
+
+	// Middleware для проверки JWT токена
+	api.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			// Исключаем роуты, которые должны быть доступны без токена
+			path := c.Request().URL.Path
+			if path == "/api/login" || path == "/api/sync" || path == "/api/stats" {
+				return next(c)
+			}
+
+			// Проверяем заголовок Authorization
+			authHeader := c.Request().Header.Get("Authorization")
+			if authHeader == "" {
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Токен не предоставлен"})
+			}
+
+			parts := strings.Split(authHeader, " ")
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Неверный формат токена"})
+			}
+
+			tokenString := parts[1]
+			jwtSecret := []byte(os.Getenv("JWT_SECRET"))
+
+			// Парсим и валидируем токен
+			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("unexpected signing method")
+				}
+				return jwtSecret, nil
+			})
+
+			if err != nil || !token.Valid {
+				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Недействительный токен"})
+			}
+
+			return next(c) // Токен верный, пускаем дальше
+		}
+	})
 
 	// Эндпоинт для проверки, что сервер жив
 	api.GET("/ping", func(c echo.Context) error {
@@ -160,6 +267,10 @@ func main() {
 
 	// 1. СИНХРОНИЗАЦИЯ: Агент запрашивает актуальные данные
 	api.GET("/sync", func(c echo.Context) error {
+		// --- ПРОВЕРКА КЛЮЧА АГЕНТА ---
+		if c.Request().Header.Get("X-API-Key") != os.Getenv("CLUSTER_API_KEY") {
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized node"})
+		}
 		// Получаем всех активных пользователей
 		var users []models.User
 		db.DB.Where("status = ?", "active").Find(&users)
@@ -182,6 +293,10 @@ func main() {
 
 	// 2. СТАТИСТИКА: Агент присылает данные о потребленном трафике
 	api.POST("/stats", func(c echo.Context) error {
+		// --- ПРОВЕРКА КЛЮЧА АГЕНТА ---
+		if c.Request().Header.Get("X-API-Key") != os.Getenv("CLUSTER_API_KEY") {
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized node"})
+		}
 		// Агент присылает массив объектов: [{"email": "uuid", "up": 123, "down": 456}]
 		var req []struct {
 			Email string `json:"email"` // У Xray юзеры называются email
@@ -290,6 +405,12 @@ func main() {
 
 	// 4. Запускаем сервер
 	log.Println("🚀 Master API запускается на порту 8080...")
+	// --- РАЗДАЧА ФРОНТЕНДА ---
+	// Мастер будет отдавать собранные файлы Vue
+	e.Static("/", "frontend/dist")
+
+	// Запуск сервера
+	log.Println("🚀 Мастер-сервер запускается на порту 8080...")
 	e.Logger.Fatal(e.Start(":8080"))
 
 }
@@ -314,3 +435,14 @@ func generateRealityKeys() (pubKey, privKey, sid string) {
 
 	return pubKey, privKey, sid
 }
+
+// // generateRandomString создает надежную случайную строку (для паролей и секретов)
+// func generateRandomString(length int) string {
+// 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@"
+// 	b := make([]byte, length)
+// 	for i := range b {
+// 		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+// 		b[i] = charset[n.Int64()]
+// 	}
+// 	return string(b)
+// }
