@@ -1,0 +1,164 @@
+---
+- name: Full Deploy VPN Node
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  vars:
+    # Эти переменные прилетают из Мастера (internal/runner) файлом extra-vars
+    master_url: ""
+    priv_key: ""
+    node_token: ""
+    node_role: ""
+    agent_src: ""
+
+  tasks:
+    - name: Проверка переменных
+      assert:
+        that:
+          - master_url | length > 0
+          - priv_key | length > 0
+          - node_token | length > 0
+          - agent_src | length > 0
+        fail_msg: "Мастер не передал обязательные параметры (MASTER_URL не задан?)"
+
+    - name: Установка зависимостей
+      apt:
+        name: [curl, ufw]
+        state: present
+        update_cache: yes
+
+    # В контейнерах (OpenVZ, LXC) часть параметров менять нельзя — это не повод падать
+    - name: Сетевой тюнинг (BBR, fq, буферы TCP)
+      block:
+        - name: Модуль BBR при загрузке
+          copy:
+            dest: /etc/modules-load.d/kvn-bbr.conf
+            content: "tcp_bbr\n"
+            mode: "0644"
+        - name: Загрузка модуля BBR
+          command: modprobe tcp_bbr
+          changed_when: false
+          failed_when: false
+        - name: Параметры sysctl
+          copy:
+            src: files/99-kvn-network.conf
+            dest: /etc/sysctl.d/99-kvn-network.conf
+            mode: "0644"
+        - name: Применение sysctl
+          command: sysctl --system
+          changed_when: false
+          failed_when: false
+
+    - name: Установка Xray (вместе с geoip.dat / geosite.dat)
+      shell: bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install
+      args:
+        creates: /usr/local/bin/xray
+
+    - name: Создание папок для Агента
+      file:
+        path: /etc/vpn-agent
+        state: directory
+        mode: '0700'
+
+    - name: Копирование бинарника Агента
+      copy:
+        src: "{{ agent_src }}"
+        dest: /usr/local/bin/vpn-agent
+        mode: '0755'
+
+    - name: Создание конфигурации .env
+      copy:
+        dest: /etc/vpn-agent/.env
+        content: |
+          MASTER_URL={{ master_url }}
+          NODE_TOKEN={{ node_token }}
+          PRIVATE_KEY={{ priv_key }}
+        mode: '0600'
+      no_log: true
+
+    - name: Настройка systemd службы для Агента
+      copy:
+        dest: /etc/systemd/system/vpn-agent.service
+        content: |
+          [Unit]
+          Description=VPN Cluster Agent
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          WorkingDirectory=/etc/vpn-agent
+          ExecStart=/usr/local/bin/vpn-agent
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+
+    # Cloudflare WARP в режиме локального SOCKS-прокси (127.0.0.1:40000) — только на выходных нодах.
+    # Через него нода выпускает выбранный в панели трафик, не показывая свой IP.
+    # Если что-то не получилось, нода всё равно работает: агент увидит, что WARP нет,
+    # и отправит этот трафик напрямую.
+    - name: Установка Cloudflare WARP
+      when: node_role == 'exit'
+      block:
+        - name: Зависимости WARP
+          apt:
+            name: [gnupg, lsb-release]
+            state: present
+
+        - name: Ключ репозитория Cloudflare
+          shell: curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          args:
+            creates: /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+
+        - name: Репозиторий Cloudflare
+          shell: echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" > /etc/apt/sources.list.d/cloudflare-client.list
+          args:
+            creates: /etc/apt/sources.list.d/cloudflare-client.list
+
+        - name: Пакет cloudflare-warp
+          apt:
+            name: cloudflare-warp
+            state: present
+            update_cache: yes
+
+        - name: Регистрация WARP (один раз)
+          # Если Cloudflare недоступен, warp-cli ждёт долго — ограничиваем минутой
+          shell: timeout 60 warp-cli --accept-tos registration new
+          args:
+            creates: /var/lib/cloudflare-warp/reg.json
+
+        - name: Режим прокси на 127.0.0.1:40000 и подключение
+          shell: |
+            timeout 30 warp-cli --accept-tos mode proxy
+            timeout 30 warp-cli --accept-tos proxy port 40000
+            timeout 30 warp-cli --accept-tos connect
+      rescue:
+        - name: WARP не установился
+          debug:
+            msg: "WARP не установлен — нода будет выпускать весь трафик со своего IP"
+
+    - name: Настройка фаервола (API Xray слушает только localhost, его не открываем)
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop: ['22', '443', '8443']  # 8443 — вход для CDN (включается в панели)
+
+    - name: UDP 443 для Hysteria2 (открыт заранее — включается галочкой в панели)
+      ufw:
+        rule: allow
+        port: "443"
+        proto: udp
+
+    - name: Запуск служб
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+        enabled: yes
+        daemon_reload: yes
+      loop:
+        - xray
+        - vpn-agent

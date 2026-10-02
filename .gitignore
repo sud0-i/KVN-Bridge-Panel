@@ -1,0 +1,11 @@
+# Секреты и локальные данные — никогда не коммитим
+.env
+*.db
+*.sqlite
+data/
+tmp_xray/
+
+# Артефакты сборки
+build/
+/kvn-master
+/vpn-agent

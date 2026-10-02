@@ -1,0 +1,9 @@
+.git
+.env
+*.db
+*.sqlite
+data/
+tmp_xray/
+build/
+frontend/node_modules
+frontend/dist

@@ -1,0 +1,5 @@
+# Замени my-vpn-panel.com на свой реальный домен при деплое!
+{$DOMAIN:localhost} {
+	# Проксируем все запросы на наш Go-контейнер
+	reverse_proxy master:8080
+}

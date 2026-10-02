@@ -1,0 +1,22 @@
+# Режим «мастер + мост на одном сервере».
+# Порт 443 занимает Xray (Reality). Посторонние подключения он пересылает сюда,
+# на 127.0.0.1:8443, добавляя PROXY protocol с настоящим IP клиента.
+{
+	https_port 8443
+	# http→https редирект вёл бы на внутренний порт 8443
+	auto_https disable_redirects
+	servers :8443 {
+		listener_wrappers {
+			proxy_protocol {
+				timeout 5s
+				# Xray стучится через docker-proxy, поэтому адрес — из частных сетей
+				allow 127.0.0.0/8 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+			}
+			tls
+		}
+	}
+}
+
+{$DOMAIN} {
+	reverse_proxy master:8080
+}

@@ -1,0 +1,30 @@
+services:
+  master:
+    build: .
+    container_name: kvn-master
+    restart: always
+    volumes:
+      # Пробрасываем папку data наружу, чтобы БД не удалилась при рестарте контейнера
+      - ./data:/app/data
+      - ./.env:/app/.env
+    # Caddy будет общаться с мастером по внутренней сети Docker
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: kvn-caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN:-localhost} # Берет домен из переменной окружения
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data # Здесь Caddy хранит полученные SSL сертификаты
+      - caddy_config:/config
+    depends_on:
+      - master
+
+volumes:
+  caddy_data:
+  caddy_config:
