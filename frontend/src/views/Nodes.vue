@@ -5,11 +5,11 @@ import LinkChart from '../ui/LinkChart.vue'
 import MetricChart from '../ui/MetricChart.vue'
 import Sheet from '../ui/Sheet.vue'
 import Terminal from '../ui/Terminal.vue'
-import { ref } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import { t } from '../i18n'
 import { nodes, loadingNodes, routing, agentSHA, agentPending, xrayPending, nodeName, ago, fmtDateTime, bridges, exits,
   openDeploy, openRedeploy, editSNI, editLabel, editCDN, deleteNode, links, linksRange, fetchLinks,
-  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly } from '../store'
+  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes } from '../store'
 
 const emit = defineEmits(['go'])
 
@@ -53,6 +53,22 @@ const uptime = (sec) => {
 const actionsFor = ref(null)
 const actionList = (n) => ['restart-xray', ...(n.MieruVersion ? ['restart-mieru'] : []), 'restart-agent', 'reboot']
 const runAction = async (n, a) => { actionsFor.value = null; await nodeAction(n, a) }
+// Подбор SNI: пока идёт сканирование, обновляем ноды раз в 5 секунд
+const sniFor = ref(null) // IP ноды, для которой открыто окно
+const sniNode = computed(() => nodes.value.find(n => n.IP === sniFor.value) || null)
+const sniScanning = (n) => n.PendingAction === 'scan-sni' || n.ActionResult === 'scan-sni: отправлено'
+let sniTimer = null
+const sniPoll = () => {
+  clearInterval(sniTimer)
+  sniTimer = setInterval(() => {
+    if (!sniNode.value || !sniScanning(sniNode.value)) { clearInterval(sniTimer); return }
+    fetchNodes()
+  }, 5000)
+}
+const openSNI = (n) => { sniFor.value = n.IP; if (sniScanning(n)) sniPoll() }
+const runSNIScan = async () => { if (await startSNIScan(sniNode.value)) sniPoll() }
+onBeforeUnmount(() => clearInterval(sniTimer))
+
 const byIP = (ip) => nodes.value.find(n => n.IP === ip)
 const pendingAgents = () => nodes.value.filter(agentPending).length
 </script>
@@ -119,7 +135,8 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
         <dl class="flex flex-col text-[13px]">
           <div class="flex justify-between gap-4 py-2 border-t border-line">
             <dt class="text-mute">{{ t('nd.sni') }}</dt>
-            <dd class="text-right break-all">{{ n.RealityDest ? t('nd.ownSite', { d: n.Domain || n.SNI }) : (n.SNI || '—') }}</dd>
+            <dd class="text-right break-all">{{ n.RealityDest ? t('nd.ownSite', { d: n.Domain || n.SNI }) : (n.SNI || '—') }}
+              <button v-if="!n.RealityDest" type="button" class="ml-2 text-acc hover:text-acc-hover" @click="openSNI(n)">{{ t('sn.pick') }}</button></dd>
           </div>
           <div class="flex justify-between items-center gap-4 py-2 border-t border-line">
             <dt class="text-mute">CDN</dt>
@@ -229,6 +246,30 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
     </section>
   </div>
   <Terminal v-if="terminalFor" :node="terminalFor" @close="terminalFor = null" @go="(v) => emit('go', v)" />
+  <Sheet v-if="sniNode" :title="t('sn.title', { name: nodeName(sniNode) })" @close="sniFor = null">
+    <p class="text-[13px] text-mute leading-relaxed">{{ t('sn.hint') }}</p>
+    <p class="text-xs text-dim leading-relaxed">{{ t('sn.warn') }}</p>
+    <template v-if="sniScanOf(sniNode)">
+      <p class="text-xs text-dim">{{ t('sn.result', { at: fmtDateTime(sniScanOf(sniNode).at), subnet: sniScanOf(sniNode).subnet, n: sniScanOf(sniNode).scanned }) }}</p>
+      <p v-if="sniScanOf(sniNode).error" class="text-sm text-err">{{ t('sn.error', { e: sniScanOf(sniNode).error }) }}</p>
+      <p v-else-if="!sniScanOf(sniNode).found.length" class="text-sm text-mute">{{ t('sn.none') }}</p>
+      <div v-else class="flex flex-col -mx-1">
+        <div v-for="c in sniScanOf(sniNode).found" :key="c.sni" class="flex items-center gap-3 px-1 py-2 border-t border-line first:border-0">
+          <div class="flex flex-col min-w-0 flex-1">
+            <span class="text-sm break-all">{{ c.sni }}</span>
+            <span class="text-xs text-dim font-mono">{{ c.ip }} · {{ c.ms }} {{ t('sn.ms') }}</span>
+          </div>
+          <span v-if="c.sni === sniNode.SNI" class="pill bg-ok-bg text-ok">{{ t('sn.current') }}</span>
+          <button v-else type="button" class="btn h-8" @click="applySNI(sniNode, c.sni)">{{ t('sn.apply') }}</button>
+        </div>
+      </div>
+    </template>
+    <p v-if="sniScanning(sniNode)" class="text-sm text-acc" role="status">{{ t('sn.scanning') }}</p>
+    <template #footer>
+      <button type="button" class="btn" @click="sniFor = null">{{ t('close') }}</button>
+      <button type="button" class="btn btn-primary" :disabled="sniScanning(sniNode) || !sniNode.IsOnline" @click="runSNIScan">{{ sniScanOf(sniNode) ? t('sn.rescan') : t('sn.scan') }}</button>
+    </template>
+  </Sheet>
   <Sheet v-if="actionsFor" :title="t('act.title') + ': ' + nodeName(actionsFor)" @close="actionsFor = null">
     <p class="text-[13px] text-mute leading-relaxed">{{ t('act.hint') }}</p>
     <div class="flex flex-col -mx-2">

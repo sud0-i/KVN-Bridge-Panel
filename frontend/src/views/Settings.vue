@@ -7,7 +7,26 @@ import { ref } from 'vue'
 import QRCode from 'qrcode'
 import { routing, saving, saveMessage, saveError, latestXray, latestXrayError, fetchLatestXray, saveSettings, downloadBackup, logout,
   notify, notifyMessage, notifyError, saveNotify, testNotify, fmtDateTime, twofa, fetchTwofa, twofaPost,
-  sshKeys, terminalLog, saveSSHKeys } from '../store'
+  sshKeys, terminalLog, saveSSHKeys, panelVersion, panelNode, panelUpdating, updatePanel, fetchNodes, fetchSettings } from '../store'
+
+// Обновление панели: пока идёт, раз в 5 с спрашиваем состояние (панель на минуту пропадёт)
+import { onBeforeUnmount } from 'vue'
+let puTimer = null
+const puPoll = () => {
+  clearInterval(puTimer)
+  const before = panelVersion.value
+  puTimer = setInterval(async () => {
+    await Promise.allSettled([fetchNodes(), fetchSettings()])
+    if (!panelUpdating(panelNode.value)) {
+      clearInterval(puTimer)
+      if (panelVersion.value && panelVersion.value !== before) window.location.reload()
+    }
+  }, 5000)
+}
+const doUpdatePanel = async () => { if (await updatePanel()) puPoll() }
+onBeforeUnmount(() => clearInterval(puTimer))
+const shortVer = (v) => (/^[0-9a-f]{40}$/.test(v) ? v.slice(0, 7) : v)
+const puCmd = "systemd-run --unit=kvn-update --collect sh -c 'cd /opt/kvn-panel && docker compose pull && docker compose up -d'"
 
 // SSH-ключи: ключ мастера (только показать) и свои ключи администратора
 import { watch } from 'vue'
@@ -184,7 +203,21 @@ const langs = [{ value: 'ru', label: 'Русский' }, { value: 'en', label: '
 
     <section v-if="routing" class="card">
       <h2 class="h2">{{ t('updates') }}</h2>
-      <div>
+      <div class="flex flex-col gap-2">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="text-sm text-mute">{{ t('pu.title') }} · {{ t('pu.version') }}</span>
+          <span class="font-mono text-sm">{{ shortVer(panelVersion) || '—' }}</span>
+          <span class="flex-1"></span>
+          <button v-if="panelNode" type="button" class="btn" :disabled="panelUpdating(panelNode) || !panelNode.IsOnline" @click="doUpdatePanel">
+            <Icon name="refresh" :size="16" />{{ t('pu.update') }}</button>
+        </div>
+        <p v-if="panelUpdating(panelNode)" class="text-sm text-acc" role="status">{{ t('pu.updating') }}</p>
+        <p v-else-if="panelNode?.ActionResult?.startsWith('update-panel:')" :class="['text-sm', panelNode.ActionResult.includes('ошибка') ? 'text-err' : 'text-mute']">
+          {{ t('pu.result', { r: panelNode.ActionResult.slice('update-panel: '.length) }) }}</p>
+        <p v-if="panelNode" class="hint">{{ t('pu.hint') }}</p>
+        <p v-else class="hint">{{ t('pu.manual') }} <code class="font-mono text-mute break-all select-all">{{ puCmd }}</code></p>
+      </div>
+      <div class="border-t border-line pt-4">
         <label class="label" for="xray-ver">{{ t('xrayVersion') }}</label>
         <div class="flex flex-wrap items-center gap-2">
           <input id="xray-ver" v-model.trim="routing.xray_version" placeholder="26.3.27" class="input w-40 font-mono">
