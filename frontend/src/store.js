@@ -264,6 +264,22 @@ export const editSNI = async (node) => {
   await patchNode(node, { sni: sni.trim() })
 }
 
+// Подбор SNI: агент сканирует соседей ноды, итог приходит в node.SNIScan (JSON)
+export const sniScanOf = (node) => { try { return node.SNIScan ? JSON.parse(node.SNIScan) : null } catch (e) { return null } }
+export const startSNIScan = async (node) => {
+  const res = await apiCall(`api/nodes/${encodeURIComponent(node.IP)}/action`, { method: 'POST', body: JSON.stringify({ action: 'scan-sni' }) })
+  if (!res.ok) {
+    alert(await readError(res))
+    return false
+  }
+  await fetchNodes()
+  return true
+}
+export const applySNI = async (node, sni) => {
+  if (!confirm(t('sn.applyConfirm', { sni, name: nodeName(node) }))) return
+  await patchNode(node, { sni })
+}
+
 export const editLabel = async (node) => {
   const label = prompt(t('labelPrompt'), node.Label || '')
   if (label === null || label.trim() === (node.Label || '')) return

@@ -1,9 +1,10 @@
 name: Docker image
 
 # Публикует образ, который скачивает install.sh:
-# ghcr.io/sud0-i/kvn-bridge-panel:latest (+ тег по коммиту и по версии)
+# ghcr.io/sud0-i/kvn-bridge-panel:latest (+ тег по коммиту и по версии).
+# PR из веток этого репозитория публикуются с тегом pr-<номер> — их можно поставить на
+# тестовый сервер до мержа; latest при этом не меняется. PR из форков только собираются.
 on:
-  # На PR образ только собирается (проверка Dockerfile), публикуется — из main и тегов
   pull_request:
   push:
     branches: [main]
@@ -17,11 +18,14 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      # Публиковать можно всё, кроме PR из форков (у них нет прав на пакет)
+      PUSH: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
-        if: github.event_name != 'pull_request'
+        if: env.PUSH == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -33,12 +37,13 @@ jobs:
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha
+            type=ref,event=pr
             type=semver,pattern={{version}}
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ env.PUSH == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

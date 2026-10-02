@@ -97,6 +97,8 @@ type Node struct {
 	// SSH: SSHKeysOnly — администратор выключил вход по паролю; SSHState — что сообщает
 	// агент; SSHHostKey — ключ сервера, запомненный при первом входе (защита от подмены)
 	SSHKeysOnly bool
+	// SNIScan — последний подбор SNI от агента (JSON protocol.SNIScan)
+	SNIScan     string
 	SSHState    string
 	SSHHostKey  string `json:"-"`
 	Mode        string

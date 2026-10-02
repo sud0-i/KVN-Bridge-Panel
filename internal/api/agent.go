@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 
@@ -54,6 +55,12 @@ func (s *Server) sync(c echo.Context) error {
 	if raw, err := url.QueryUnescape(c.Request().Header.Get(protocol.MetricsHeader)); err == nil && raw != "" {
 		s.storeMetrics(node, raw, now)
 	}
+	if raw, err := url.QueryUnescape(c.Request().Header.Get(protocol.SNIScanHeader)); err == nil && raw != "" && len(raw) < 8000 {
+		var scan protocol.SNIScan
+		if json.Unmarshal([]byte(raw), &scan) == nil && raw != node.SNIScan {
+			s.db.Model(&models.Node{}).Where("ip = ?", node.IP).Update("sni_scan", raw)
+		}
+	}
 	if st := header(protocol.SSHHeader); st != "" {
 		s.db.Model(&models.Node{}).Where("ip = ?", node.IP).Update("ssh_state", st)
 	}
@@ -96,6 +103,7 @@ func (s *Server) sync(c echo.Context) error {
 	}
 	resp.Maintenance = s.maintenance(routing)
 	resp.Action = s.takeAction(node)
+	resp.NodeIP = node.IP
 	resp.SSHKeys = s.authorizedKeys()
 	resp.SSHKeysOnly = node.SSHKeysOnly
 

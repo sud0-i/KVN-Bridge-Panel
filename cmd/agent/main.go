@@ -38,6 +38,10 @@ type agent struct {
 	mu      sync.Mutex
 	pending map[string]*protocol.UserTraffic
 
+	// sni — подбор SNI по команде из панели; nodeIP — внешний адрес ноды от мастера
+	sniScan sniScanner
+	nodeIP  string
+
 	// ssh — состояние SSH на ноде (ключи панели, вход по паролю)
 	ssh *sshState
 
@@ -155,6 +159,9 @@ func (a *agent) sync() {
 	req.Header.Set(protocol.MieruHeader, a.mieru.running)
 	req.Header.Set(protocol.MieruErrorHeader, url.QueryEscape(a.mieru.err))
 	req.Header.Set(protocol.MetricsHeader, a.metrics.header())
+	if h := a.sniScan.header(); h != "" {
+		req.Header.Set(protocol.SNIScanHeader, h)
+	}
 	if st := a.sshHeader(); st != "" {
 		req.Header.Set(protocol.SSHHeader, url.QueryEscape(st))
 	}
@@ -204,6 +211,9 @@ func (a *agent) sync() {
 	// новая версия агента или Xray может как раз это исправить
 	defer a.maintain(data.Maintenance)
 	a.links.setExits(data.Exits)
+	if data.NodeIP != "" {
+		a.nodeIP = data.NodeIP
+	}
 	a.scheduleAction(data.Action)
 	a.syncSSH(data.SSHKeys, data.SSHKeysOnly)
 	// mita — после применения конфига Xray: его SOCKS-вход для mita должен уже работать

@@ -205,7 +205,7 @@ func deref(v *float64) float64 {
 
 var nodeActions = map[string]bool{
 	protocol.ActionRestartXray: true, protocol.ActionRestartMieru: true,
-	protocol.ActionRestartAgent: true, protocol.ActionReboot: true,
+	protocol.ActionRestartAgent: true, protocol.ActionReboot: true, protocol.ActionScanSNI: true,
 }
 
 func (s *Server) nodeAction(c echo.Context) error {
@@ -218,6 +218,9 @@ func (s *Server) nodeAction(c echo.Context) error {
 	}
 	if err := c.Bind(&req); err != nil || !nodeActions[req.Action] {
 		return jsonError(c, http.StatusBadRequest, "Неизвестное действие")
+	}
+	if req.Action == protocol.ActionScanSNI && node.RealityDest != "" {
+		return jsonError(c, http.StatusBadRequest, "Мост на сервере мастера маскируется под домен панели — подбирать SNI ему не нужно")
 	}
 	if !s.isAlive(node) {
 		return jsonError(c, http.StatusBadRequest, "Нода не на связи — команду некому выполнить. Перезагрузите сервер в панели хостера.")
