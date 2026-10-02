@@ -217,6 +217,7 @@ func (s *Server) getSettings(c echo.Context) error {
 		"warp_templates": WarpTemplates,
 		"fingerprints":   Fingerprints,
 		"agent_sha":      s.agentBin.hash(), // сверяем с версиями агентов на нодах
+		"version":        Version,
 	})
 }
 

@@ -115,10 +115,16 @@ export const messages = {
       current: 'сейчас', apply: 'Применить', ms: 'мс', applyConfirm: 'Сменить SNI ноды {name} на {sni}? Подписки и мост обновятся сами в течение минуты.',
       error: 'Ошибка: {e}'
     },
+    pu: {
+      title: 'Панель', version: 'Версия', update: 'Обновить панель', updating: 'Обновляется — панель перезапустится и будет недоступна около минуты. Страница сама подхватит новую версию.',
+      confirm: 'Обновить панель? Скачается свежий образ, панель перезапустится (около минуты). Если новая версия не запустится, вернётся прежняя. VPN у пользователей это не затрагивает.',
+      hint: 'Обновление выполняет агент моста на этом же сервере, поэтому оно доходит до конца, даже если страница или терминал отключатся. Ноды подтянутся к новой версии сами.',
+      manual: 'Мост не на сервере панели — обновите вручную по SSH:', result: 'Последнее обновление: {r}'
+    },
     act: {
       title: 'Управление сервером', hint: 'Команда уйдёт ноде при следующей синхронизации — до минуты. Перед перезапуском нода отправит накопленный трафик.',
       pending: 'ждёт выполнения: {a}', masterWarn: 'Это сервер мастера: панель будет недоступна, пока он не загрузится (обычно 1–2 минуты).',
-      name: { 'scan-sni': 'Подбор SNI', 'restart-xray': 'Перезапустить Xray', 'restart-mieru': 'Перезапустить mieru', 'restart-agent': 'Перезапустить агент', reboot: 'Перезагрузить сервер' },
+      name: { 'update-panel': 'Обновление панели', 'scan-sni': 'Подбор SNI', 'restart-xray': 'Перезапустить Xray', 'restart-mieru': 'Перезапустить mieru', 'restart-agent': 'Перезапустить агент', reboot: 'Перезагрузить сервер' },
       desc: { 'restart-xray': 'Соединения пользователей на секунду оборвутся', 'restart-mieru': 'Оборвутся только соединения mieru', 'restart-agent': 'Пользователей не затрагивает', reboot: 'Сервер будет недоступен 1–2 минуты' },
       confirm: { 'restart-xray': 'Перезапустить Xray на {name}?', 'restart-mieru': 'Перезапустить mieru на {name}?', 'restart-agent': 'Перезапустить агент на {name}?', reboot: 'Перезагрузить сервер {name}?' }
     },
@@ -407,10 +413,16 @@ export const messages = {
       current: 'current', apply: 'Apply', ms: 'ms', applyConfirm: 'Change the SNI of {name} to {sni}? Subscriptions and the bridge update within a minute.',
       error: 'Error: {e}'
     },
+    pu: {
+      title: 'Panel', version: 'Version', update: 'Update panel', updating: 'Updating — the panel restarts and is unavailable for about a minute. This page picks up the new version by itself.',
+      confirm: 'Update the panel? A fresh image is downloaded and the panel restarts (about a minute). If the new version fails to start, the previous one comes back. Users\' VPN is not affected.',
+      hint: 'The update is run by the bridge agent on this same server, so it finishes even if this page or the terminal disconnects. Nodes follow the new version by themselves.',
+      manual: 'The bridge is not on the panel server — update by hand over SSH:', result: 'Last update: {r}'
+    },
     act: {
       title: 'Server control', hint: 'The command reaches the node on its next sync — within a minute. Before restarting, the node sends pending traffic stats.',
       pending: 'pending: {a}', masterWarn: 'This is the master server: the panel is unavailable until it boots (usually 1–2 minutes).',
-      name: { 'scan-sni': 'SNI search', 'restart-xray': 'Restart Xray', 'restart-mieru': 'Restart mieru', 'restart-agent': 'Restart agent', reboot: 'Reboot server' },
+      name: { 'update-panel': 'Panel update', 'scan-sni': 'SNI search', 'restart-xray': 'Restart Xray', 'restart-mieru': 'Restart mieru', 'restart-agent': 'Restart agent', reboot: 'Reboot server' },
       desc: { 'restart-xray': 'User connections drop for a second', 'restart-mieru': 'Only mieru connections drop', 'restart-agent': 'Doesn’t affect users', reboot: 'The server is down for 1–2 minutes' },
       confirm: { 'restart-xray': 'Restart Xray on {name}?', 'restart-mieru': 'Restart mieru on {name}?', 'restart-agent': 'Restart the agent on {name}?', reboot: 'Reboot server {name}?' }
     },

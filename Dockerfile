@@ -23,8 +23,9 @@ RUN go mod download
 
 COPY . .
 
-# Мастер (с CGO для SQLite)
-RUN CGO_ENABLED=1 GOOS=linux go build -o kvn-master ./cmd/master
+# Мастер (с CGO для SQLite); VERSION — коммит, его видно в настройках панели
+ARG VERSION=dev
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-X github.com/sud0-i/KVN-Bridge-Panel/internal/api.Version=${VERSION}" -o kvn-master ./cmd/master
 # Агент — статический бинарник для нод (Ansible копирует его на сервер)
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o build/agent_linux_amd64 ./cmd/agent
 

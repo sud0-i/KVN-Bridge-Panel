@@ -219,6 +219,8 @@ const (
 	ActionReboot       = "reboot"
 	// ActionScanSNI — найти в подсети ноды сайты, под которые удобно маскировать Reality
 	ActionScanSNI = "scan-sni"
+	// ActionUpdatePanel — обновить панель (только мост на сервере мастера)
+	ActionUpdatePanel = "update-panel"
 )
 
 // NodeMetrics — показатели сервера. Скорости и доли считаются с прошлого замера

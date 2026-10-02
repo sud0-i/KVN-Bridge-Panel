@@ -44,6 +44,7 @@ jobs:
           context: .
           platforms: linux/amd64
           push: ${{ env.PUSH == 'true' }}
+          build-args: VERSION=${{ github.event.pull_request.head.sha || github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

@@ -44,3 +44,23 @@ func TestSNIScan(t *testing.T) {
 		t.Fatalf("мост на мастере: %d", rec.Code)
 	}
 }
+
+func TestUpdatePanelAction(t *testing.T) {
+	ev := newEnv(t)
+	adm := ev.adminToken()
+	exit := ev.addNode("10.0.0.9", protocol.RoleExit)
+	ev.syncAs(exit)
+	if rec := ev.do("POST", "/api/nodes/10.0.0.9/action", `{"action":"update-panel"}`, adm); rec.Code != http.StatusBadRequest {
+		t.Fatalf("обычная нода не обновляет панель: %d", rec.Code)
+	}
+	ev.db.Model(&models.Node{}).Where("ip = ?", "10.0.0.9").Update("reality_dest", "127.0.0.1:8443")
+	if rec := ev.do("POST", "/api/nodes/10.0.0.9/action", `{"action":"update-panel"}`, adm); rec.Code != http.StatusAccepted {
+		t.Fatalf("мост на мастере: %d %s", rec.Code, rec.Body)
+	}
+	if a := ev.syncAs(exit).Action; a != protocol.ActionUpdatePanel {
+		t.Fatalf("выдано: %q", a)
+	}
+	if !strings.Contains(ev.do("GET", "/api/settings", "", adm).Body.String(), `"version":"dev"`) {
+		t.Fatal("версия панели в настройках")
+	}
+}

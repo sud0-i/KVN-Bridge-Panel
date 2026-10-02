@@ -221,7 +221,14 @@ node knows where the bridge traffic came from. Servers, the database and logs ar
 
 ## Updates
 
-The panel: `cd /opt/kvn-panel && docker compose pull && docker compose up -d`.
+The panel: the "Update panel" button in Settings → Updates. The update is run by the bridge agent on
+the same server, so it finishes even if the page disconnects; if the new version fails to start, the
+previous one comes back. If the bridge is not on the panel server, update over SSH:
+```bash
+systemd-run --unit=kvn-update --collect sh -c 'cd /opt/kvn-panel && docker compose pull && docker compose up -d'
+```
+(through `systemd-run`, so the update is not cut short together with the SSH session — including from
+the panel's terminal).
 
 Nodes update themselves, verifying every step — if something is off, the working version stays and
 the panel shows why:
