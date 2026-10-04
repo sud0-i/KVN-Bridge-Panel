@@ -109,8 +109,12 @@ panel get the required ports opened in ufw automatically.
 
 **SNI (Reality camouflage).** Each node poses as a real website, which must open from the node
 itself over TLS 1.3 and HTTP/2. The agent checks this; if the site does not fit, the node shows
-`SNI ✗` with the reason. SNI is changed with the ✏️ button without a redeploy. To check a candidate
-from the node: `curl -so /dev/null --tlsv1.3 --http2 -w '%{http_version}\n' https://example.com`
+`SNI ✗` with the reason. SNI is changed with the ✏️ button without a redeploy. The "Find" button next
+to the SNI looks for suitable sites among the node's neighbours — in the same /24 at the same hoster,
+which makes the camouflage most plausible. The node checks the 254 neighbouring addresses once (at
+most 10 connections at a time) and lists sites with TLS 1.3, X25519, HTTP/2 and a real certificate
+whose name points to that same address; any of them is applied with one click. To check a candidate
+by hand from the node: `curl -so /dev/null --tlsv1.3 --http2 -w '%{http_version}\n' https://example.com`
 (should print `2`).
 
 **TLS fingerprint** (Routing) — which browser connections imitate: chrome (default), firefox,
@@ -217,7 +221,14 @@ node knows where the bridge traffic came from. Servers, the database and logs ar
 
 ## Updates
 
-The panel: `cd /opt/kvn-panel && docker compose pull && docker compose up -d`.
+The panel: the "Update panel" button in Settings → Updates. The update is run by the bridge agent on
+the same server, so it finishes even if the page disconnects; if the new version fails to start, the
+previous one comes back. If the bridge is not on the panel server, update over SSH:
+```bash
+systemd-run --unit=kvn-update --collect sh -c 'cd /opt/kvn-panel && docker compose pull && docker compose up -d'
+```
+(through `systemd-run`, so the update is not cut short together with the SSH session — including from
+the panel's terminal).
 
 Nodes update themselves, verifying every step — if something is off, the working version stays and
 the panel shows why:
@@ -243,7 +254,7 @@ docker compose start master
 
 - **A node did not appear after install** — the reason is on its card ("Deploy failed: …"). Usual
   suspects: wrong password, SSH closed, not Debian/Ubuntu. The 🔄 button retries.
-- **`SNI ✗` on a node** — the camouflage site does not open from it; pick another (✏️ button).
+- **`SNI ✗` on a node** — the camouflage site does not open from it; pick another ("Find" or ✏️).
 - **`WARP ✗`** — WARP did not start, "through WARP" traffic leaves from the node's IP. Often temporary.
 - **The CDN does not connect** — check SSL mode "Full" and turn off Bot Fight Mode.
 - **The two-factor code is rejected** — check the server time (`timedatectl`); the panel says so if

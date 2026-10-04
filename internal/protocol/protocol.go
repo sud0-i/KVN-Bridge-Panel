@@ -3,6 +3,8 @@
 // агент сам превращает их в конфиг своего ядра.
 package protocol
 
+import "time"
+
 const (
 	RoleBridge = "bridge" // точка входа: к ней подключаются пользователи
 	RoleExit   = "exit"   // выходная нода: через неё мост выпускает трафик
@@ -37,6 +39,8 @@ const (
 	LinksHeader = "X-Node-Links"
 	// MetricsHeader — показатели сервера (JSON NodeMetrics)
 	MetricsHeader = "X-Node-Metrics"
+	// SNIScanHeader — итог подбора SNI (JSON SNIScan), агент шлёт его, пока он свежий
+	SNIScanHeader = "X-Node-SNI-Scan"
 	// ActionHeader — итог действия, выданного в прошлой синхронизации ("restart-xray: ok")
 	ActionHeader = "X-Node-Action"
 	// SSHHeader — состояние SSH на ноде: "keys" (ключ мастера стоит), "keys-only" (и пароль
@@ -75,6 +79,8 @@ type SyncResponse struct {
 	Notify *Notify `json:"notify,omitempty"`
 	// Action — что сделать с сервером: ActionRestartXray, ActionRestartMieru, ActionRestartAgent, ActionReboot
 	Action string `json:"action,omitempty"`
+	// NodeIP — внешний адрес ноды, как его знает мастер (для подбора SNI среди соседей)
+	NodeIP string `json:"node_ip,omitempty"`
 	// SSHKeys — ключи, которые агент держит в /root/.ssh/authorized_keys (ключ мастера и
 	// личные ключи администратора); SSHKeysOnly — запретить вход по паролю
 	SSHKeys     []string `json:"ssh_keys,omitempty"`
@@ -211,6 +217,10 @@ const (
 	ActionRestartMieru = "restart-mieru"
 	ActionRestartAgent = "restart-agent"
 	ActionReboot       = "reboot"
+	// ActionScanSNI — найти в подсети ноды сайты, под которые удобно маскировать Reality
+	ActionScanSNI = "scan-sni"
+	// ActionUpdatePanel — обновить панель (только мост на сервере мастера)
+	ActionUpdatePanel = "update-panel"
 )
 
 // NodeMetrics — показатели сервера. Скорости и доли считаются с прошлого замера
@@ -229,4 +239,20 @@ type NodeMetrics struct {
 	Retrans     *float64 `json:"retrans,omitempty"` // доля переотправленных TCP-сегментов, %
 	Conns       int      `json:"conns"`             // открытых TCP-соединений
 	UptimeSec   int64    `json:"uptime_sec"`
+}
+
+// SNIScan — итог подбора SNI: соседние сайты, подходящие для Reality
+type SNIScan struct {
+	At      time.Time      `json:"at"`
+	Subnet  string         `json:"subnet"`
+	Scanned int            `json:"scanned"` // сколько адресов ответили на 443
+	Found   []SNICandidate `json:"found"`
+	Error   string         `json:"error,omitempty"`
+}
+
+// SNICandidate — сайт-сосед: имя, его адрес и время TLS-рукопожатия с ноды
+type SNICandidate struct {
+	SNI string `json:"sni"`
+	IP  string `json:"ip"`
+	MS  int    `json:"ms"`
 }

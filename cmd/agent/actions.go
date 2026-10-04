@@ -39,6 +39,13 @@ func (a *agent) runAction(action string) {
 		a.collectAndSendStats()
 		exitNow()
 		return
+	case protocol.ActionUpdatePanel:
+		var res string
+		if res, err = updatePanel(); err == nil {
+			result = res
+		}
+	case protocol.ActionScanSNI:
+		err = a.sniScan.scan(a.nodeIP)
 	case protocol.ActionReboot:
 		a.collectAndSendStats()
 		var out []byte

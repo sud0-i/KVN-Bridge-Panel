@@ -148,3 +148,6 @@ func jsonError(c echo.Context, code int, msg string) error {
 func (s *Server) ping(c echo.Context) error {
 	return c.JSON(200, map[string]string{"message": "pong"})
 }
+
+// Version — коммит, из которого собран образ (задаётся при сборке через -ldflags)
+var Version = "dev"

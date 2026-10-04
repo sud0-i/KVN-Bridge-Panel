@@ -264,6 +264,37 @@ export const editSNI = async (node) => {
   await patchNode(node, { sni: sni.trim() })
 }
 
+// Обновление панели: выполняет агент моста на сервере мастера (снаружи контейнера)
+export const panelNode = computed(() => nodes.value.find(n => n.RealityDest) || null)
+export const panelUpdating = (n) => !!n && (n.PendingAction === 'update-panel' || n.ActionResult === 'update-panel: отправлено')
+export const updatePanel = async () => {
+  const n = panelNode.value
+  if (!n || !confirm(t('pu.confirm'))) return false
+  const res = await apiCall(`api/nodes/${encodeURIComponent(n.IP)}/action`, { method: 'POST', body: JSON.stringify({ action: 'update-panel' }) })
+  if (!res.ok) {
+    alert(await readError(res))
+    return false
+  }
+  await fetchNodes()
+  return true
+}
+
+// Подбор SNI: агент сканирует соседей ноды, итог приходит в node.SNIScan (JSON)
+export const sniScanOf = (node) => { try { return node.SNIScan ? JSON.parse(node.SNIScan) : null } catch (e) { return null } }
+export const startSNIScan = async (node) => {
+  const res = await apiCall(`api/nodes/${encodeURIComponent(node.IP)}/action`, { method: 'POST', body: JSON.stringify({ action: 'scan-sni' }) })
+  if (!res.ok) {
+    alert(await readError(res))
+    return false
+  }
+  await fetchNodes()
+  return true
+}
+export const applySNI = async (node, sni) => {
+  if (!confirm(t('sn.applyConfirm', { sni, name: nodeName(node) }))) return
+  await patchNode(node, { sni })
+}
+
 export const editLabel = async (node) => {
   const label = prompt(t('labelPrompt'), node.Label || '')
   if (label === null || label.trim() === (node.Label || '')) return
@@ -301,6 +332,7 @@ export const warpRulesText = ref('')
 export const bridgeDirectText = ref('')
 // Хэш агента на мастере: нода с другим хэшем обновится сама при следующей синхронизации
 export const agentSHA = ref('')
+export const panelVersion = ref('')
 export const saving = ref(false)
 export const saveMessage = ref('')
 export const saveError = ref('')
@@ -318,6 +350,7 @@ export const fetchSettings = async () => {
     warpTemplates.value = data.warp_templates
     fingerprints.value = data.fingerprints || []
     agentSHA.value = data.agent_sha || ''
+    panelVersion.value = data.version || ''
     warpRulesText.value = toLines(data.routing.warp_rules)
     bridgeDirectText.value = toLines(data.routing.bridge_direct)
   } catch (error) {
