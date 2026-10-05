@@ -19,6 +19,26 @@ device ──▶ bridge ──▶ exit node ──▶ internet
                           └──▶ Cloudflare WARP (by rules)
 ```
 
+## How it differs from 3x-ui and Remnawave
+
+It is not a competitor to those panels but a simple alternative for one job: **getting a bridge →
+exit cascade up quickly** for yourself and the people close to you. In practice it takes two
+buttons: the installer on the panel server and "Add a node" for every next server. Everything
+else (Xray, the agent, firewall, certificates, protocols, routing between bridge and exit) the
+panel does itself.
+
+| | KVN-Bridge-Panel | [3x-ui](https://github.com/MHSanaei/3x-ui) | [Remnawave](https://github.com/remnawave/panel) |
+|---|---|---|---|
+| Made for | a cascade for yourself, family and friends | one server with fine-grained manual Xray setup | a service with many nodes and users |
+| Bridge → exit cascade | out of the box, with exit health checks and link monitoring | assembled by hand | assembled by hand in config profiles |
+| New server | IP and root password — everything is installed for you | the panel is installed on every server | a node container is installed, then the node is added in the panel |
+| Configuration | opinionated defaults, few switches | full control over Xray inbounds | flexible profiles, templates, user groups, API |
+| Panel server | one container, SQLite | one process, SQLite | several services and a separate database |
+
+If you want full control over the Xray config on a single server, use 3x-ui. If you have hundreds
+of users, sell access, need an API or several admins, use Remnawave. If you want a working cascade
+for your own people without assembling configs by hand, this panel is for that.
+
 ## Features
 
 - **Protocols:** VLESS + Reality (primary), XHTTP, Hysteria2, mieru, and connecting through a CDN
@@ -260,6 +280,19 @@ docker compose start master
 - **The two-factor code is rejected** — check the server time (`timedatectl`); the panel says so if
   the clock is off.
 
+## Tech stack
+
+| Part | Technology |
+|---|---|
+| VPN core | [Xray-core](https://github.com/XTLS/Xray-core): VLESS, Reality, XTLS Vision, XHTTP, Hysteria2; [mieru](https://github.com/enfein/mieru) (mita server) |
+| Panel backend | Go, [Echo](https://echo.labstack.com/), [GORM](https://gorm.io/) + SQLite, JWT, TOTP |
+| Interface | [Vue 3](https://vuejs.org/), [Vite](https://vite.dev/), [Tailwind CSS](https://tailwindcss.com/), [xterm.js](https://xtermjs.org/) (terminal) |
+| Node agent | Go, a single static binary; Xray gRPC API for statistics and adding users without restarts |
+| Node install | [Ansible](https://www.ansible.com/) over SSH (password or the panel's key) |
+| Web server and TLS | [Caddy](https://caddyserver.com/), Let's Encrypt |
+| Extras | [Cloudflare WARP](https://developers.cloudflare.com/warp-client/), Telegram Bot API, [Loyalsoldier](https://github.com/Loyalsoldier/v2ray-rules-dat) geo databases |
+| Build and delivery | Docker, GitHub Actions → image in GHCR |
+
 ## Development
 
 ```bash
@@ -269,14 +302,13 @@ cd frontend && npm ci && npm run dev   # proxies /api to localhost:8080
 
 | Part | What's inside |
 |---|---|
-| `cmd/master` | API and panel: Go, [Echo](https://echo.labstack.com/), [GORM](https://gorm.io/) + SQLite |
-| `frontend` | [Vue 3](https://vuejs.org/), [Vite](https://vite.dev/), [Tailwind CSS](https://tailwindcss.com/) |
+| `cmd/master` | API and panel |
+| `frontend` | panel interface |
 | `cmd/agent` | node agent: fetches its config from the panel every minute, builds and checks the Xray config, reports statistics |
 | `internal/protocol` | the panel ↔ agent exchange format |
 | `ansible/` | installing a node by IP and password |
 
-VPN core — [Xray-core](https://github.com/XTLS/Xray-core), mieru server — [mita](https://github.com/enfein/mieru),
-web server — [Caddy](https://caddyserver.com/). CI publishes `ghcr.io/sud0-i/kvn-bridge-panel:latest`
+CI publishes `ghcr.io/sud0-i/kvn-bridge-panel:latest`
 on every push to `main`.
 
 Bugs and ideas — [Issues](https://github.com/sud0-i/KVN-Bridge-Panel/issues).

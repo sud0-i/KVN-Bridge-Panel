@@ -18,6 +18,25 @@
                               └──▶ Cloudflare WARP (по правилам)
 ```
 
+## Чем отличается от 3x-ui и Remnawave
+
+Это не конкурент этим панелям, а простая альтернатива для одной задачи: **быстро поднять каскад
+мост → выход** для себя и близких. По сути — в две кнопки: установщик на сервере панели и
+«Добавить ноду» для каждого следующего сервера. Всё остальное (Xray, агент, фаервол, сертификаты,
+протоколы, маршрутизация между мостом и выходом) панель делает сама.
+
+| | KVN-Bridge-Panel | [3x-ui](https://github.com/MHSanaei/3x-ui) | [Remnawave](https://github.com/remnawave/panel) |
+|---|---|---|---|
+| Для чего | каскад для себя, семьи и друзей | один сервер с тонкой ручной настройкой Xray | сервис с множеством нод и пользователей |
+| Каскад мост → выход | из коробки, с проверкой выходов и мониторингом канала | собирается вручную | собирается вручную в профилях конфигов |
+| Новый сервер | IP и root-пароль — всё ставится само | панель ставится на каждый сервер | на ноду ставится свой контейнер, затем она подключается в панели |
+| Настройка | готовые решения, мало переключателей | полный контроль над входами Xray | гибкие профили, шаблоны, группы пользователей, API |
+| Сервер панели | один контейнер, база SQLite | один процесс, база SQLite | несколько сервисов и отдельная база данных |
+
+Если нужен полный контроль над конфигом Xray на одном сервере — берите 3x-ui. Если пользователей
+сотни, нужны продажи, API, несколько администраторов — Remnawave. Если нужен работающий каскад
+для своих без ручной сборки конфигов — эта панель.
+
 ## Возможности
 
 - **Протоколы:** VLESS + Reality (основной), XHTTP, Hysteria2, mieru и подключение через CDN
@@ -261,6 +280,19 @@ docker compose start master
 - **Двухфакторный код не подходит** — проверьте время на сервере (`timedatectl`); панель сама скажет,
   если часы ушли.
 
+## Стек технологий
+
+| Часть | Технологии |
+|---|---|
+| VPN-ядро | [Xray-core](https://github.com/XTLS/Xray-core): VLESS, Reality, XTLS Vision, XHTTP, Hysteria2; [mieru](https://github.com/enfein/mieru) (сервер mita) |
+| Панель (бэкенд) | Go, [Echo](https://echo.labstack.com/), [GORM](https://gorm.io/) + SQLite, JWT, TOTP |
+| Интерфейс | [Vue 3](https://vuejs.org/), [Vite](https://vite.dev/), [Tailwind CSS](https://tailwindcss.com/), [xterm.js](https://xtermjs.org/) (терминал) |
+| Агент на нодах | Go, один статический бинарник; gRPC API Xray — статистика и добавление пользователей без перезапуска |
+| Установка нод | [Ansible](https://www.ansible.com/) по SSH (пароль или ключ панели) |
+| Веб-сервер и TLS | [Caddy](https://caddyserver.com/), Let's Encrypt |
+| Дополнительно | [Cloudflare WARP](https://developers.cloudflare.com/warp-client/), Telegram Bot API, геобазы [Loyalsoldier](https://github.com/Loyalsoldier/v2ray-rules-dat) |
+| Сборка и поставка | Docker, GitHub Actions → образ в GHCR |
+
 ## Разработка
 
 ```bash
@@ -270,15 +302,13 @@ cd frontend && npm ci && npm run dev   # проксирует /api на localhos
 
 | Часть | Что внутри |
 |---|---|
-| `cmd/master` | API и панель: Go, [Echo](https://echo.labstack.com/), [GORM](https://gorm.io/) + SQLite |
-| `frontend` | [Vue 3](https://vuejs.org/), [Vite](https://vite.dev/), [Tailwind CSS](https://tailwindcss.com/) |
+| `cmd/master` | API и панель |
+| `frontend` | интерфейс панели |
 | `cmd/agent` | агент на нодах: раз в минуту берёт конфиг у панели, собирает и проверяет конфиг Xray, присылает статистику |
 | `internal/protocol` | формат обмена панель ↔ агент |
 | `ansible/` | установка ноды по IP и паролю |
 
-VPN-ядро — [Xray-core](https://github.com/XTLS/Xray-core), сервер mieru — [mita](https://github.com/enfein/mieru),
-веб-сервер — [Caddy](https://caddyserver.com/). CI публикует образ
-`ghcr.io/sud0-i/kvn-bridge-panel:latest` при каждом пуше в `main`.
+CI публикует образ `ghcr.io/sud0-i/kvn-bridge-panel:latest` при каждом пуше в `main`.
 
 Ошибки и предложения — в [Issues](https://github.com/sud0-i/KVN-Bridge-Panel/issues).
 
