@@ -7,7 +7,8 @@ import { ref } from 'vue'
 import QRCode from 'qrcode'
 import { routing, saving, saveMessage, saveError, latestXray, latestXrayError, fetchLatestXray, saveSettings, downloadBackup, logout,
   notify, notifyMessage, notifyError, saveNotify, testNotify, fmtDateTime, twofa, fetchTwofa, twofaPost,
-  sshKeys, terminalLog, saveSSHKeys, panelVersion, panelNode, panelUpdating, updatePanel, fetchNodes, fetchSettings } from '../store'
+  sshKeys, terminalLog, saveSSHKeys, panelVersion, panelNode, panelUpdating, updatePanel, fetchNodes, fetchSettings,
+  panelChannel, setPanelChannel } from '../store'
 
 // Обновление панели: пока идёт, раз в 5 с спрашиваем состояние (панель на минуту пропадёт)
 import { onBeforeUnmount } from 'vue'
@@ -211,6 +212,11 @@ const langs = [{ value: 'ru', label: 'Русский' }, { value: 'en', label: '
           <button v-if="panelNode" type="button" class="btn" :disabled="panelUpdating(panelNode) || !panelNode.IsOnline" @click="doUpdatePanel">
             <Icon name="refresh" :size="16" />{{ t('pu.update') }}</button>
         </div>
+        <div v-if="panelNode" class="flex flex-wrap items-center gap-3">
+          <span class="text-sm text-mute">{{ t('pu.channel') }}</span>
+          <Seg :model-value="panelChannel" @update:model-value="setPanelChannel" :options="[{ value: 'stable', label: t('pu.stable') }, { value: 'beta', label: t('pu.beta') }]" :label="t('pu.channel')" />
+        </div>
+        <p v-if="panelNode && panelChannel === 'beta'" class="text-sm text-warn leading-relaxed">{{ t('pu.betaHint') }}</p>
         <p v-if="panelUpdating(panelNode)" class="text-sm text-acc" role="status">{{ t('pu.updating') }}</p>
         <p v-else-if="panelNode?.ActionResult?.startsWith('update-panel:')" :class="['text-sm', panelNode.ActionResult.includes('ошибка') ? 'text-err' : 'text-mute']">
           {{ t('pu.result', { r: panelNode.ActionResult.slice('update-panel: '.length) }) }}</p>

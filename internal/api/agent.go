@@ -104,6 +104,9 @@ func (s *Server) sync(c echo.Context) error {
 	resp.Maintenance = s.maintenance(routing)
 	resp.Action = s.takeAction(node)
 	resp.NodeIP = node.IP
+	if node.RealityDest != "" {
+		resp.PanelChannel = s.panelChannel()
+	}
 	resp.SSHKeys = s.authorizedKeys()
 	resp.SSHKeysOnly = node.SSHKeysOnly
 

@@ -48,16 +48,18 @@ esac
 	}
 	set := func(name, v string) { os.WriteFile(filepath.Join(state, name), []byte(v+"\n"), 0o644) }
 
-	if _, err := updatePanel(); err == nil || !strings.Contains(err.Error(), "нет панели") {
+	if _, err := updatePanel(""); err == nil || !strings.Contains(err.Error(), "нет панели") {
 		t.Fatalf("без docker-compose.yml: %v", err)
 	}
-	os.WriteFile(filepath.Join(dir, "docker-compose.yml"), nil, 0o644)
+	compose := filepath.Join(dir, "docker-compose.yml")
+	os.WriteFile(compose, []byte("services:\n  master:\n    image: ghcr.io/sud0-i/kvn-bridge-panel:pr-2\n  caddy:\n    image: caddy:2-alpine\n"), 0o644)
+	readCompose := func() string { b, _ := os.ReadFile(compose); return string(b) }
 
 	// Новая версия поднялась
 	set("running", "sha256:old")
 	set("registry", "sha256:new")
 	set("http", "404")
-	if res, err := updatePanel(); err != nil || res != "готово" {
+	if res, err := updatePanel(""); err != nil || res != "готово" {
 		t.Fatalf("обновление: %q %v", res, err)
 	}
 	if b, _ := os.ReadFile(filepath.Join(state, "running")); strings.TrimSpace(string(b)) != "sha256:new" {
@@ -65,8 +67,22 @@ esac
 	}
 
 	// Уже последняя
-	if res, err := updatePanel(); err != nil || res != "уже последняя версия" {
+	if res, err := updatePanel(""); err != nil || res != "уже последняя версия" {
 		t.Fatalf("без изменений: %q %v", res, err)
+	}
+
+	// Тестовый канал: тег в docker-compose.yml меняется на beta, чужие образы не трогаем
+	set("registry", "sha256:beta1")
+	if res, err := updatePanel("beta"); err != nil || res != "готово (тестовая версия)" {
+		t.Fatalf("beta: %q %v", res, err)
+	}
+	if c := readCompose(); !strings.Contains(c, "image: ghcr.io/sud0-i/kvn-bridge-panel:beta\n") || !strings.Contains(c, "image: caddy:2-alpine") {
+		t.Fatalf("compose после beta:\n%s", c)
+	}
+	// Обратно на стабильный
+	set("registry", "sha256:new")
+	if res, err := updatePanel("stable"); err != nil || res != "готово" || !strings.Contains(readCompose(), "kvn-bridge-panel:latest\n") {
+		t.Fatalf("stable: %q %v\n%s", res, err, readCompose())
 	}
 
 	// Новая не отвечает — откат на прежнюю (ожидание сокращаем: curl сразу «000»)
@@ -76,12 +92,15 @@ esac
 	short = strings.Replace(short, "sleep 2", "sleep 0", 1)
 	defer func(s string) { panelUpdateScriptRun = s }(panelUpdateScriptRun)
 	panelUpdateScriptRun = short
-	_, err := updatePanel()
+	_, err := updatePanel("beta")
 	if err == nil || !strings.Contains(err.Error(), "вернул прежнюю") {
 		t.Fatalf("откат: %v", err)
 	}
 	if b, _ := os.ReadFile(filepath.Join(state, "running")); strings.TrimSpace(string(b)) != "sha256:new" {
 		t.Fatalf("после отката работает %s", b)
+	}
+	if !strings.Contains(readCompose(), "kvn-bridge-panel:latest\n") {
+		t.Fatalf("после отката compose не восстановлен:\n%s", readCompose())
 	}
 	calls, _ := os.ReadFile(filepath.Join(state, "calls"))
 	if !strings.Contains(string(calls), "tag sha256:new ghcr.io/x/panel:latest") {

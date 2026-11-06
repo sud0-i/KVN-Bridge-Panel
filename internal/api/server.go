@@ -107,6 +107,7 @@ func (s *Server) Register(e *echo.Echo) {
 	api.GET("/terminal/log", s.terminalLog, admin)
 	api.GET("/metrics", s.getMetrics, admin)
 	api.POST("/nodes/:ip/action", s.nodeAction, admin)
+	api.PUT("/panel-channel", s.savePanelChannel, admin)
 	api.GET("/2fa", s.getTOTP, admin)
 	api.POST("/2fa/setup", s.setupTOTP, admin)
 	api.POST("/2fa/enable", s.enableTOTP, admin)

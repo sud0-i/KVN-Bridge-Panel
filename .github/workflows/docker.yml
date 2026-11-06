@@ -2,12 +2,13 @@ name: Docker image
 
 # Публикует образ, который скачивает install.sh:
 # ghcr.io/sud0-i/kvn-bridge-panel:latest (+ тег по коммиту и по версии).
+# Ветка beta публикуется с тегом beta — это «тестовый» канал обновлений в панели.
 # PR из веток этого репозитория публикуются с тегом pr-<номер> — их можно поставить на
 # тестовый сервер до мержа; latest при этом не меняется. PR из форков только собираются.
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, beta]
     tags: ['v*']
   workflow_dispatch:
 
@@ -36,6 +37,7 @@ jobs:
           images: ghcr.io/sud0-i/kvn-bridge-panel
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=beta,enable=${{ github.ref == 'refs/heads/beta' }}
             type=sha
             type=ref,event=pr
             type=semver,pattern={{version}}

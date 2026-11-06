@@ -40,7 +40,9 @@ type agent struct {
 
 	// sni — подбор SNI по команде из панели; nodeIP — внешний адрес ноды от мастера
 	sniScan sniScanner
-	nodeIP  string
+	// panelChannel — канал обновлений панели (stable / beta), для моста на сервере мастера
+	panelChannel string
+	nodeIP       string
 
 	// ssh — состояние SSH на ноде (ключи панели, вход по паролю)
 	ssh *sshState
@@ -214,6 +216,7 @@ func (a *agent) sync() {
 	if data.NodeIP != "" {
 		a.nodeIP = data.NodeIP
 	}
+	a.panelChannel = data.PanelChannel
 	a.scheduleAction(data.Action)
 	a.syncSSH(data.SSHKeys, data.SSHKeysOnly)
 	// mita — после применения конфига Xray: его SOCKS-вход для mita должен уже работать

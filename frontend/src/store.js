@@ -267,9 +267,17 @@ export const editSNI = async (node) => {
 // Обновление панели: выполняет агент моста на сервере мастера (снаружи контейнера)
 export const panelNode = computed(() => nodes.value.find(n => n.RealityDest) || null)
 export const panelUpdating = (n) => !!n && (n.PendingAction === 'update-panel' || n.ActionResult === 'update-panel: отправлено')
+export const setPanelChannel = async (ch) => {
+  const res = await apiCall('api/panel-channel', { method: 'PUT', body: JSON.stringify({ channel: ch }) })
+  if (!res.ok) {
+    alert(await readError(res))
+    return
+  }
+  panelChannel.value = ch
+}
 export const updatePanel = async () => {
   const n = panelNode.value
-  if (!n || !confirm(t('pu.confirm'))) return false
+  if (!n || !confirm(t('pu.confirm') + (panelChannel.value === 'beta' ? '\n\n' + t('pu.betaWarn') : ''))) return false
   const res = await apiCall(`api/nodes/${encodeURIComponent(n.IP)}/action`, { method: 'POST', body: JSON.stringify({ action: 'update-panel' }) })
   if (!res.ok) {
     alert(await readError(res))
@@ -333,6 +341,7 @@ export const bridgeDirectText = ref('')
 // Хэш агента на мастере: нода с другим хэшем обновится сама при следующей синхронизации
 export const agentSHA = ref('')
 export const panelVersion = ref('')
+export const panelChannel = ref('stable') // stable — образ latest, beta — тестовый
 export const saving = ref(false)
 export const saveMessage = ref('')
 export const saveError = ref('')
@@ -351,6 +360,7 @@ export const fetchSettings = async () => {
     fingerprints.value = data.fingerprints || []
     agentSHA.value = data.agent_sha || ''
     panelVersion.value = data.version || ''
+    panelChannel.value = data.panel_channel || 'stable'
     warpRulesText.value = toLines(data.routing.warp_rules)
     bridgeDirectText.value = toLines(data.routing.bridge_direct)
   } catch (error) {

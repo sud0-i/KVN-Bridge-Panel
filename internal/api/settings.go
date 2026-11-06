@@ -218,6 +218,7 @@ func (s *Server) getSettings(c echo.Context) error {
 		"fingerprints":   Fingerprints,
 		"agent_sha":      s.agentBin.hash(), // сверяем с версиями агентов на нодах
 		"version":        Version,
+		"panel_channel":  s.panelChannel(),
 	})
 }
 
@@ -284,4 +285,30 @@ func (s *Server) saveSettings(c echo.Context) error {
 		return jsonError(c, http.StatusInternalServerError, "Ошибка БД")
 	}
 	return c.JSON(http.StatusOK, r)
+}
+
+// ---------- Канал обновлений панели ----------
+
+const panelChannelKey = "panel_channel"
+
+// panelChannel — "stable" (образ latest) или "beta" (образ beta)
+func (s *Server) panelChannel() string {
+	var st models.Setting
+	if s.db.First(&st, "key = ?", panelChannelKey).Error == nil && st.Value == "beta" {
+		return "beta"
+	}
+	return "stable"
+}
+
+func (s *Server) savePanelChannel(c echo.Context) error {
+	var req struct {
+		Channel string `json:"channel"`
+	}
+	if err := c.Bind(&req); err != nil || (req.Channel != "stable" && req.Channel != "beta") {
+		return jsonError(c, http.StatusBadRequest, "Канал: stable или beta")
+	}
+	if err := s.db.Save(&models.Setting{Key: panelChannelKey, Value: req.Channel}).Error; err != nil {
+		return jsonError(c, http.StatusInternalServerError, "Ошибка БД")
+	}
+	return c.JSON(http.StatusOK, map[string]string{"channel": req.Channel})
 }

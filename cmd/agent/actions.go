@@ -41,7 +41,7 @@ func (a *agent) runAction(action string) {
 		return
 	case protocol.ActionUpdatePanel:
 		var res string
-		if res, err = updatePanel(); err == nil {
+		if res, err = updatePanel(a.panelChannel); err == nil {
 			result = res
 		}
 	case protocol.ActionScanSNI:
