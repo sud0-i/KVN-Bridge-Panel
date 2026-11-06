@@ -119,7 +119,10 @@ export const messages = {
       title: 'Панель', version: 'Версия', update: 'Обновить панель', updating: 'Обновляется — панель перезапустится и будет недоступна около минуты. Страница сама подхватит новую версию.',
       confirm: 'Обновить панель? Скачается свежий образ, панель перезапустится (около минуты). Если новая версия не запустится, вернётся прежняя. VPN у пользователей это не затрагивает.',
       hint: 'Обновление выполняет агент моста на этом же сервере, поэтому оно доходит до конца, даже если страница или терминал отключатся. Ноды подтянутся к новой версии сами.',
-      manual: 'Мост не на сервере панели — обновите вручную по SSH:', result: 'Последнее обновление: {r}'
+      manual: 'Мост не на сервере панели — обновите вручную по SSH:', result: 'Последнее обновление: {r}',
+      channel: 'Канал обновлений', stable: 'Стабильный', beta: 'Тестовый',
+      betaHint: 'Тестовый канал — сборка из ветки beta: новые функции до того, как они попадут в стабильную версию. Может работать с ошибками; вернуться можно в любой момент — переключите на «Стабильный» и обновите панель.',
+      betaWarn: 'Это тестовая версия. Если что-то не так — переключите канал на «Стабильный» и обновите ещё раз.'
     },
     act: {
       title: 'Управление сервером', hint: 'Команда уйдёт ноде при следующей синхронизации — до минуты. Перед перезапуском нода отправит накопленный трафик.',
@@ -417,7 +420,10 @@ export const messages = {
       title: 'Panel', version: 'Version', update: 'Update panel', updating: 'Updating — the panel restarts and is unavailable for about a minute. This page picks up the new version by itself.',
       confirm: 'Update the panel? A fresh image is downloaded and the panel restarts (about a minute). If the new version fails to start, the previous one comes back. Users\' VPN is not affected.',
       hint: 'The update is run by the bridge agent on this same server, so it finishes even if this page or the terminal disconnects. Nodes follow the new version by themselves.',
-      manual: 'The bridge is not on the panel server — update by hand over SSH:', result: 'Last update: {r}'
+      manual: 'The bridge is not on the panel server — update by hand over SSH:', result: 'Last update: {r}',
+      channel: 'Update channel', stable: 'Stable', beta: 'Beta',
+      betaHint: 'The beta channel is a build of the beta branch: new features before they reach the stable version. It may have bugs; you can go back at any time — switch to Stable and update the panel.',
+      betaWarn: 'This is a beta version. If something is off, switch the channel to Stable and update again.'
     },
     act: {
       title: 'Server control', hint: 'The command reaches the node on its next sync — within a minute. Before restarting, the node sends pending traffic stats.',

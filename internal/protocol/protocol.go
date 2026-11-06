@@ -81,6 +81,8 @@ type SyncResponse struct {
 	Action string `json:"action,omitempty"`
 	// NodeIP — внешний адрес ноды, как его знает мастер (для подбора SNI среди соседей)
 	NodeIP string `json:"node_ip,omitempty"`
+	// PanelChannel — канал обновлений панели: "stable" или "beta" (только мосту на сервере мастера)
+	PanelChannel string `json:"panel_channel,omitempty"`
 	// SSHKeys — ключи, которые агент держит в /root/.ssh/authorized_keys (ключ мастера и
 	// личные ключи администратора); SSHKeysOnly — запретить вход по паролю
 	SSHKeys     []string `json:"ssh_keys,omitempty"`

@@ -57,8 +57,25 @@ func TestUpdatePanelAction(t *testing.T) {
 	if rec := ev.do("POST", "/api/nodes/10.0.0.9/action", `{"action":"update-panel"}`, adm); rec.Code != http.StatusAccepted {
 		t.Fatalf("мост на мастере: %d %s", rec.Code, rec.Body)
 	}
-	if a := ev.syncAs(exit).Action; a != protocol.ActionUpdatePanel {
-		t.Fatalf("выдано: %q", a)
+	if r := ev.syncAs(exit); r.Action != protocol.ActionUpdatePanel || r.PanelChannel != "stable" {
+		t.Fatalf("выдано: %q, канал %q", r.Action, r.PanelChannel)
+	}
+	// Канал обновлений
+	if rec := ev.do("PUT", "/api/panel-channel", `{"channel":"nightly"}`, adm); rec.Code != http.StatusBadRequest {
+		t.Fatal("неизвестный канал")
+	}
+	if rec := ev.do("PUT", "/api/panel-channel", `{"channel":"beta"}`, adm); rec.Code != http.StatusOK {
+		t.Fatalf("канал: %d", rec.Code)
+	}
+	if ch := ev.syncAs(exit).PanelChannel; ch != "beta" {
+		t.Fatalf("канал на ноде: %q", ch)
+	}
+	if !strings.Contains(ev.do("GET", "/api/settings", "", adm).Body.String(), `"panel_channel":"beta"`) {
+		t.Fatal("канал в настройках")
+	}
+	other := ev.addNode("10.0.0.10", protocol.RoleExit)
+	if ch := ev.syncAs(other).PanelChannel; ch != "" {
+		t.Fatal("канал нужен только мосту на сервере мастера")
 	}
 	if !strings.Contains(ev.do("GET", "/api/settings", "", adm).Body.String(), `"version":"dev"`) {
 		t.Fatal("версия панели в настройках")

@@ -250,6 +250,10 @@ systemd-run --unit=kvn-update --collect sh -c 'cd /opt/kvn-panel && docker compo
 (through `systemd-run`, so the update is not cut short together with the SSH session — including from
 the panel's terminal).
 
+**Update channels.** Next to the button: "Stable" (image `latest`, branch `main`) or "Beta" (image `beta`,
+branch `beta`): new features land in `beta` first and reach `main` only after testing. The agent changes
+the tag in `docker-compose.yml` itself; to go back, switch to Stable and update again.
+
 Nodes update themselves, verifying every step — if something is off, the working version stays and
 the panel shows why:
 - **the agent** follows the panel's version within a minute of a panel update;
@@ -294,6 +298,8 @@ docker compose start master
 | Build and delivery | Docker, GitHub Actions → image in GHCR |
 
 ## Development
+
+Send changes as pull requests to the `beta` branch; they reach `main` after testing on the beta channel.
 
 ```bash
 go test ./...
