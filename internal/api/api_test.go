@@ -214,7 +214,7 @@ func TestSubscription(t *testing.T) {
 		t.Fatalf("ожидали base64: %v", err)
 	}
 	link := string(raw)
-	for _, want := range []string{"vless://u1@10.0.0.1:443?", "flow=xtls-rprx-vision", "security=reality", "type=tcp", "sni=www.example.com"} {
+	for _, want := range []string{"vless://u1@10.0.0.1:443?", "flow=xtls-rprx-vision", "security=reality", "type=tcp", "sni=www.example.com", "support-x25519mlkem768=true"} {
 		if !strings.Contains(link, want) {
 			t.Errorf("в ссылке нет %q: %s", want, link)
 		}

@@ -78,6 +78,10 @@ func vlessLink(userID string, srv subServer) string {
 	q.Set("fp", srv.fingerprint())
 	q.Set("pbk", n.PubKey)
 	q.Set("sid", n.SID)
+	// mihomo по умолчанию вырезает X25519MLKEM768 из Client Hello, а Xray 26.9.9+ такие
+	// подключения к Reality отклоняет. Параметр понимают mihomo 1.19.31+ и Tachyon,
+	// остальные клиенты его пропускают.
+	q.Set("support-x25519mlkem768", "true")
 	if srv.XHTTPPath != "" {
 		q.Set("type", "xhttp")
 		q.Set("path", srv.XHTTPPath)
