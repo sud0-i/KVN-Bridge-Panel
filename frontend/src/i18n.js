@@ -162,7 +162,12 @@ export const messages = {
       test: 'Отправить тест', testQueued: 'Отправляю — придёт в течение минуты'
     },
 
-    st: { download: 'Скачать бэкап', language: 'Язык' },
+    st: {
+      download: 'Скачать бэкап', language: 'Язык',
+      restore: 'Восстановить из файла', restoreAction: 'Восстановить', restoring: 'Восстановление…',
+      restoreConfirm: 'Заменить данные панели из выбранного бэкапа? Панель сохранит копию текущей базы, текущий вход и локальный мост.',
+      restoreDone: 'База восстановлена. Копия предыдущей базы лежит в data/backups/{file}.',
+    },
     loginHint: 'Введите пароль администратора',
     checking: 'Проверка...',
     login: 'Войти',
@@ -473,7 +478,12 @@ export const messages = {
       test: 'Send test', testQueued: 'Sending — it arrives within a minute'
     },
 
-    st: { download: 'Download backup', language: 'Language' },
+    st: {
+      download: 'Download backup', language: 'Language',
+      restore: 'Restore from file', restoreAction: 'Restore', restoring: 'Restoring…',
+      restoreConfirm: 'Replace panel data with the selected backup? The panel saves the current database and keeps your sign-in settings and local bridge.',
+      restoreDone: 'Database restored. The previous database is saved as data/backups/{file}.',
+    },
     loginHint: 'Enter the admin password',
     checking: 'Checking...',
     login: 'Sign in',

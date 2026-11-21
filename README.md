@@ -282,8 +282,13 @@ the panel shows why:
 
 The panel saves a copy of the database to `/opt/kvn-panel/data/backups` every day (keeps 7). Download
 a fresh copy with the "💾 Backup" button and keep it off the server, together with
-`/opt/kvn-panel/.env`. Node keys are not stored in the database, so nodes keep working after
-a restore without a redeploy.
+`/opt/kvn-panel/.env`.
+
+In **Settings → Backup**, select the SQLite file and confirm restoration. The panel checks the file,
+saves the previous database in the backup directory, and preserves the local bridge registration and
+current sign-in settings. Remote agents need node tokens that match the restored database.
+
+If the panel is unavailable, you can restore the file from SSH:
 
 ```bash
 cd /opt/kvn-panel

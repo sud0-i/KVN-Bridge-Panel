@@ -85,7 +85,8 @@ func main() {
 
 	// Ежедневные копии базы рядом с ней (в Docker это ./data/backups на хосте)
 	dbPath := envOr("DB_PATH", "data/db.sqlite")
-	backup.Schedule(db.DB, filepath.Join(filepath.Dir(dbPath), "backups"), 7)
+	cfg.BackupDir = filepath.Join(filepath.Dir(dbPath), "backups")
+	backup.Schedule(db.DB, cfg.BackupDir, 7)
 
 	// 3. Веб-сервер
 	e := echo.New()

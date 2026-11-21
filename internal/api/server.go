@@ -30,6 +30,7 @@ type Config struct {
 	SiteDir     string // свой сайт вместо заглушки, если там есть index.html
 	// SSHKeyPath — SSH-ключ мастера для входа на ноды; пусто — data/ssh/id_ed25519
 	SSHKeyPath string
+	BackupDir  string
 }
 
 // NodeAliveTimeout — нода без синхронизации дольше этого срока считается офлайн
@@ -45,6 +46,7 @@ type Server struct {
 	deploy             func(runner.DeployParams)
 	provisionSelfSteal func(context.Context, string, string, string, runner.SSHRoute) error
 	provisionWARP      func(context.Context, string, string, runner.SSHRoute) error
+	restoreMu          sync.Mutex
 	warpJobs           sync.Map
 	selfStealJobs      sync.Map
 	now                func() time.Time
@@ -102,6 +104,7 @@ func (s *Server) Register(e *echo.Echo) {
 	api.DELETE("/nodes/:ip", s.deleteNode, admin)
 
 	api.GET("/backup", s.downloadBackup, admin)
+	api.POST("/backup/restore", s.uploadBackup, admin)
 
 	api.GET("/settings", s.getSettings, admin)
 	api.PUT("/settings", s.saveSettings, admin)

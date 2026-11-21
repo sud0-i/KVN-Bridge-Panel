@@ -8,7 +8,7 @@ import QRCode from 'qrcode'
 import { routing, saving, saveMessage, saveError, latestXray, latestXrayError, fetchLatestXray, saveSettings, downloadBackup, logout,
   notify, notifyMessage, notifyError, saveNotify, testNotify, fmtDateTime, twofa, fetchTwofa, twofaPost,
   sshKeys, terminalLog, saveSSHKeys, panelVersion, panelNode, panelUpdating, updatePanel, fetchNodes, fetchSettings,
-  panelChannel, setPanelChannel } from '../store'
+  panelChannel, setPanelChannel, restoreBackup, loadAll } from '../store'
 
 // Обновление панели: пока идёт, раз в 5 с спрашиваем состояние (панель на минуту пропадёт)
 import { onBeforeUnmount } from 'vue'
@@ -24,6 +24,27 @@ const puPoll = () => {
     }
   }, 5000)
 }
+const backupFile = ref(null)
+const restoring = ref(false)
+const restoreResult = ref('')
+const restoreError = ref('')
+
+async function applyBackup() {
+  if (!backupFile.value || !confirm(t('st.restoreConfirm'))) return
+  restoring.value = true
+  restoreResult.value = ''
+  restoreError.value = ''
+  try {
+    const result = await restoreBackup(backupFile.value)
+    restoreResult.value = t('st.restoreDone', { file: result.previous_backup })
+    loadAll()
+  } catch (error) {
+    restoreError.value = error.message
+  } finally {
+    restoring.value = false
+  }
+}
+
 const doUpdatePanel = async () => { if (await updatePanel()) puPoll() }
 onBeforeUnmount(() => clearInterval(puTimer))
 const shortVer = (v) => (/^[0-9a-f]{40}$/.test(v) ? v.slice(0, 7) : v)
@@ -256,6 +277,16 @@ const langs = [{ value: 'ru', label: 'Русский' }, { value: 'en', label: '
         <p class="text-[13px] text-mute leading-relaxed">{{ t('backupHint') }}</p>
       </div>
       <button type="button" class="btn self-start" @click="downloadBackup"><Icon name="download" :size="16" />{{ t('st.download') }}</button>
+      <form class="flex flex-col gap-3 border-t border-line pt-4" @submit.prevent="applyBackup">
+        <label for="restore-backup" class="label">{{ t('st.restore') }}</label>
+        <input id="restore-backup" class="input" type="file" accept=".sqlite,.sqlite3,.db" :disabled="restoring"
+          @change="backupFile = $event.target.files[0] || null">
+        <button type="submit" class="btn self-start" :disabled="restoring || !backupFile">
+          {{ t(restoring ? 'st.restoring' : 'st.restoreAction') }}
+        </button>
+        <p v-if="restoreResult" class="text-sm text-ok" role="status">{{ restoreResult }}</p>
+        <p v-if="restoreError" class="text-sm text-err" role="alert">{{ restoreError }}</p>
+      </form>
     </section>
 
     <section class="card">

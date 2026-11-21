@@ -69,6 +69,14 @@ export const downloadBackup = async () => {
   }
 }
 
+export const restoreBackup = async (file) => {
+  const res = await apiCall('api/backup/restore', {
+    method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file
+  })
+  if (!res.ok) throw new Error(await readError(res))
+  return await res.json()
+}
+
 // ================= ФОРМАТИРОВАНИЕ =================
 export const GB = 1073741824
 export const used = (u) => u.TrafficUp + u.TrafficDown
