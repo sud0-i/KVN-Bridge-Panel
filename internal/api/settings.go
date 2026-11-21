@@ -95,7 +95,7 @@ func validMieruPorts(s string) bool {
 	if from < 1025 || to > 65535 || to < from || to-from >= 100 {
 		return false
 	}
-	for _, busy := range []int{protocol.CDNPort, xray.APIPort, protocol.MieruSocksPort, protocol.WarpProxyPort, 8080} {
+	for _, busy := range []int{protocol.CDNPort, xray.APIPort, protocol.MieruSocksPort, protocol.WarpProxyPort, 8080, 8445} {
 		if busy >= from && busy <= to {
 			return false
 		}

@@ -69,12 +69,12 @@ for your own people without assembling configs by hand, this panel is for that.
   bridge in your own country and the exit node abroad.
 - The panel and a bridge can share a server, and a single server is enough to get started.
 
-## One VPS without a domain (beta)
+## One VPS without a domain
 
 If you choose “By IP, without a domain” in the installer, allow inbound TCP 80, 443 and 9443 on your fresh Debian or Ubuntu server with a public IPv4 address. To select this mode explicitly:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/sud0-i/KVN-Bridge-Panel/beta/install.sh | sudo bash -s -- --beta --no-domain
+curl -fsSL https://raw.githubusercontent.com/sud0-i/KVN-Bridge-Panel/main/install.sh | sudo bash -s -- --no-domain
 ```
 
 Set a password and confirm the IP address. The installer puts the panel and bridge on the same server. The panel and subscriptions use `https://<IP>:9443`; REALITY uses TCP 443. Let's Encrypt needs TCP 80 to issue and renew the IP certificate. Create a user in the panel and add the subscription to a VPN app. You can add an exit node later.

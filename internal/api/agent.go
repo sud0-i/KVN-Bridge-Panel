@@ -98,7 +98,7 @@ func (s *Server) sync(c echo.Context) error {
 		}
 		resp.Mieru = m
 	}
-	if routing.CDN && node.CDNDomain != "" {
+	if routing.CDN && node.CDNDomain != "" && cdnPortAvailable(*node) {
 		resp.CDN = &protocol.CDN{Domain: node.CDNDomain, Path: node.XHTTPPath}
 	}
 	resp.Maintenance = s.maintenance(routing)

@@ -147,6 +147,33 @@ func TestSubPreview(t *testing.T) {
 	}
 }
 
+func TestLocalBridgeCDNDoesNotConflictWithLegacyCaddyPort(t *testing.T) {
+	ev := newEnv(t)
+	admin := ev.adminToken()
+	token := ev.addNode("10.0.0.1", protocol.RoleBridge)
+	const domain = "cdn.example.com"
+	if err := ev.db.Model(&models.Node{}).Where("ip = ?", "10.0.0.1").Updates(map[string]any{
+		"reality_dest": "127.0.0.1:8443", "cdn_domain": domain,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if rec := ev.do("PUT", "/api/settings", `{"region":"ru","region_route":"bridge","cdn":true}`, admin); rec.Code != http.StatusOK {
+		t.Fatalf("настройки CDN: %d %s", rec.Code, rec.Body)
+	}
+	if cfg := ev.syncAs(token); cfg.CDN != nil || cfg.Reality.Dest != "127.0.0.1:8443" {
+		t.Fatalf("CDN не должен вытеснять Caddy: %+v", cfg)
+	}
+	if rec := ev.do("PATCH", "/api/nodes/10.0.0.1", `{"cdn":"cdn.example.com"}`, admin); rec.Code != http.StatusBadRequest {
+		t.Fatalf("настройка с конфликтом CDN: %d %s", rec.Code, rec.Body)
+	}
+	if err := ev.db.Model(&models.Node{}).Where("ip = ?", "10.0.0.1").Update("reality_dest", "127.0.0.1:8445").Error; err != nil {
+		t.Fatal(err)
+	}
+	if cfg := ev.syncAs(token); cfg.CDN == nil || cfg.CDN.Domain != domain {
+		t.Fatalf("CDN должен работать на новом порту Caddy: %+v", cfg)
+	}
+}
+
 func TestCDN(t *testing.T) {
 	ev := newEnv(t)
 	adm := ev.adminToken()

@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -22,6 +23,15 @@ import (
 )
 
 const selfStealTarget = "127.0.0.1:9444"
+const localCDNConflict = "CDN недоступен: локальный Caddy занимает порт 8443. Перенесите Caddy на другой локальный порт."
+
+func cdnPortAvailable(node models.Node) bool {
+	if !node.IsLocalBridge() {
+		return true
+	}
+	_, port, _ := net.SplitHostPort(node.RealityDest)
+	return port != strconv.Itoa(protocol.CDNPort)
+}
 
 var hostnameRe = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$`)
 
@@ -33,6 +43,9 @@ func (s *Server) listNodes(c echo.Context) error {
 	// В панели показываем реальное состояние: давно не выходившая на связь нода — офлайн
 	for i := range nodes {
 		nodes[i].IsOnline = s.isAlive(nodes[i])
+		if nodes[i].CDNDomain != "" && !cdnPortAvailable(nodes[i]) && nodes[i].ConfigError == "" {
+			nodes[i].ConfigError = localCDNConflict
+		}
 	}
 	return c.JSON(http.StatusOK, nodes)
 }
@@ -256,6 +269,9 @@ func (s *Server) updateNode(c echo.Context) error {
 		cdn := strings.ToLower(strings.TrimSpace(*req.CDN))
 		if cdn != "" && !hostnameRe.MatchString(cdn) {
 			return jsonError(c, http.StatusBadRequest, "CDN-домен — имя вида cdn.example.com")
+		}
+		if cdn != "" && !cdnPortAvailable(node) {
+			return jsonError(c, http.StatusBadRequest, localCDNConflict)
 		}
 		updates["cdn_domain"] = cdn
 	}

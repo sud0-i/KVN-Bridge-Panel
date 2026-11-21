@@ -10,6 +10,7 @@ NC='\033[0m'
 
 REPO_RAW="https://raw.githubusercontent.com/sud0-i/KVN-Bridge-Panel"
 PANEL_HTTPS_PORT=9443
+LOCAL_CADDY_ADDR=127.0.0.1:8445
 INSTALL_DIR="/opt/kvn-panel"
 
 fail() { echo -e "${RED}❌ $*${NC}"; exit 1; }
@@ -179,6 +180,7 @@ cd "$INSTALL_DIR"
 DOMAIN=$DOMAIN
 MASTER_URL=$MASTER_URL
 PANEL_CHANNEL=$CHANNEL
+LOCAL_CADDY_ADDR=$LOCAL_CADDY_ADDR
 ADMIN_PASSWORD=$ADMIN_PASS
 JWT_SECRET=$JWT_SECRET
 ADMIN_PATH=$ADMIN_PATH
@@ -218,12 +220,12 @@ EOF
         ufw allow "$PANEL_HTTPS_PORT/tcp" </dev/null
     fi
 elif [ "$WITH_BRIDGE" = 1 ]; then
-    # Порт 443 займёт Xray; Caddy слушает только 127.0.0.1:8443
+    # 8443 на хосте нужен входу CDN Xray; Caddy внутри контейнера слушает 8443.
     curl -fsSL "$REPO_RAW/Caddyfile.combined" -o Caddyfile
     MASTER_PORTS='    ports:
       - "127.0.0.1:8080:8080"'
-    CADDY_PORTS='      - "80:80"
-      - "127.0.0.1:8443:8443"'
+    CADDY_PORTS="      - \"80:80\"
+      - \"$LOCAL_CADDY_ADDR:8443\""
 else
     cat > Caddyfile <<'EOF'
 {$DOMAIN} {
@@ -302,7 +304,7 @@ if [ "$WITH_BRIDGE" = 1 ]; then
     done
 
     # Мастер регистрирует ноду и отдаёт её токен и приватный ключ
-    bridge_args=(-ip "$SERVER_IP" -domain "$DOMAIN")
+    bridge_args=(-ip "$SERVER_IP" -domain "$DOMAIN" -dest "$LOCAL_CADDY_ADDR")
     if [ "$SINGLE_IP" = 1 ]; then
         bridge_args=(-ip "$SERVER_IP" -direct)
     fi

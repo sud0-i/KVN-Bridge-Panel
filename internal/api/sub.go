@@ -175,7 +175,7 @@ func (s *Server) subServers() ([]subServer, error) {
 	}
 	// Через CDN — для любой ноды с CDN-доменом: IP ноды клиент не видит
 	addCDN := func(n models.Node) {
-		if routing.CDN && n.CDNDomain != "" && n.XHTTPPath != "" {
+		if routing.CDN && n.CDNDomain != "" && n.XHTTPPath != "" && cdnPortAvailable(n) {
 			push(subServer{Node: n, Name: serverName(n, " CDN"), XHTTPPath: n.XHTTPPath, FP: routing.fingerprint(), CDN: true})
 		}
 	}

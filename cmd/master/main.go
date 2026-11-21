@@ -109,13 +109,13 @@ func main() {
 
 // localBridge регистрирует мост на сервере Мастера и печатает в stdout
 // переменные для /etc/vpn-agent/.env. Посторонние подключения к :443 Reality
-// отправляет в локальный Caddy (127.0.0.1:8443), поэтому снаружи сервер выглядит
+// отправляет в локальный Caddy, поэтому снаружи сервер выглядит
 // как обычный сайт с настоящим сертификатом, а панель открывается по тому же домену.
 func localBridge(args []string) error {
 	fs := flag.NewFlagSet("local-bridge", flag.ContinueOnError)
 	ip := fs.String("ip", "", "публичный IP сервера")
 	domain := fs.String("domain", os.Getenv("DOMAIN"), "домен панели")
-	dest := fs.String("dest", "127.0.0.1:8443", "адрес локального Caddy")
+	dest := fs.String("dest", envOr("LOCAL_CADDY_ADDR", "127.0.0.1:8443"), "адрес локального Caddy")
 	direct := fs.Bool("direct", false, "мост без домена панели")
 	if err := fs.Parse(args); err != nil {
 		return err

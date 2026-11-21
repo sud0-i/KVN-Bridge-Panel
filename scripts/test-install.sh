@@ -12,7 +12,9 @@ mkdir -p "$T/bin" "$T/etc/systemd" "$T/etc/modules-load.d" "$T/etc/sysctl.d" "$T
 cat > "$T/bin/docker" <<'STUB'
 #!/bin/bash
 case "$*" in
-  *"exec -T master"*) echo "NODE_TOKEN=tok"; echo "PRIVATE_KEY=priv" ;;
+  *"exec -T master"*)
+    if [[ "$*" == *' -domain '* && "$*" != *' -dest 127.0.0.1:8445'* ]]; then exit 1; fi
+    echo "NODE_TOKEN=tok"; echo "PRIVATE_KEY=priv" ;;
   *"compose cp"*) : > "${@: -1}" ;;
 esac
 STUB
@@ -76,7 +78,8 @@ run '1\npanel.example.com\nmypass\ny\nn\n' "мастер + мост"
 [ ! -f "$T/warp.log" ] || { echo "FAIL: WARP ставился, хотя отказались"; exit 1; }
 grep -q '^NODE_TOKEN=tok$' "$T/etc/vpn-agent/.env" || { echo "FAIL: .env агента"; exit 1; }
 [ -s "$T/etc/sysctl.d/99-kvn-network.conf" ] || { echo "FAIL: сетевые настройки"; exit 1; }
-grep -q '127.0.0.1:8443:8443' "$T/opt/docker-compose.yml" || { echo "FAIL: compose моста"; exit 1; }
+grep -q '127.0.0.1:8445:8443' "$T/opt/docker-compose.yml" || { echo "FAIL: compose моста"; exit 1; }
+grep -q '^LOCAL_CADDY_ADDR=127.0.0.1:8445$' "$T/opt/.env"
 
 # 3. Одиночный сервер с WARP (Enter = да)
 run '1\npanel.example.com\nmypass\ny\n\n' "мастер + мост + WARP"
