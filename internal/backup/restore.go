@@ -43,6 +43,9 @@ func Restore(ctx context.Context, database *gorm.DB, path, safetyPath string, no
 	}
 	source := (&url.URL{Scheme: "file", Path: filepath.ToSlash(absolute), RawQuery: "mode=ro"}).String()
 	return database.WithContext(ctx).Connection(func(conn *gorm.DB) error {
+		// Use fresh statements on the pinned connection. A raw PRAGMA scan can
+		// otherwise leave its destination model attached to the following query.
+		conn = conn.Session(&gorm.Session{NewDB: true})
 		if err := conn.Exec("ATTACH DATABASE ? AS incoming", source).Error; err != nil {
 			return fmt.Errorf("%w: %v", ErrInvalidBackup, err)
 		}
@@ -56,7 +59,7 @@ func Restore(ctx context.Context, database *gorm.DB, path, safetyPath string, no
 		for _, table := range restoreTables {
 			list, err := sharedColumns(conn, table)
 			if err != nil {
-				return err
+				return fmt.Errorf("проверка таблицы %s: %w", table.name, err)
 			}
 			columns[table.name] = list
 		}
@@ -67,7 +70,7 @@ func Restore(ctx context.Context, database *gorm.DB, path, safetyPath string, no
 		return conn.Transaction(func(tx *gorm.DB) error {
 			var existing []models.Node
 			if err := tx.Find(&existing).Error; err != nil {
-				return err
+				return fmt.Errorf("чтение текущих нод: %w", err)
 			}
 			var local []models.Node
 			for _, node := range existing {
@@ -77,7 +80,7 @@ func Restore(ctx context.Context, database *gorm.DB, path, safetyPath string, no
 			}
 			var loginSettings []models.Setting
 			if err := tx.Where("key IN ?", []string{"totp", "panel_channel"}).Find(&loginSettings).Error; err != nil {
-				return err
+				return fmt.Errorf("чтение параметров входа: %w", err)
 			}
 
 			for _, table := range restoreTables {
