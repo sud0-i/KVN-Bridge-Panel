@@ -220,7 +220,7 @@ func (s *Server) nodeAction(c echo.Context) error {
 	if err := c.Bind(&req); err != nil || !nodeActions[req.Action] {
 		return jsonError(c, http.StatusBadRequest, "Неизвестное действие")
 	}
-	if req.Action == protocol.ActionUpdatePanel && node.RealityDest == "" {
+	if req.Action == protocol.ActionUpdatePanel && !node.IsLocalBridge() {
 		return jsonError(c, http.StatusBadRequest, "Обновить панель может только мост на сервере мастера")
 	}
 	if req.Action == protocol.ActionScanSNI && node.RealityDest != "" {

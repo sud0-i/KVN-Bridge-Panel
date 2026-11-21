@@ -294,7 +294,13 @@ const panelChannelKey = "panel_channel"
 // panelChannel — "stable" (образ latest) или "beta" (образ beta)
 func (s *Server) panelChannel() string {
 	var st models.Setting
-	if s.db.First(&st, "key = ?", panelChannelKey).Error == nil && st.Value == "beta" {
+	if s.db.First(&st, "key = ?", panelChannelKey).Error == nil {
+		if st.Value == "beta" {
+			return "beta"
+		}
+		return "stable"
+	}
+	if s.cfg.DefaultPanelChannel == "beta" {
 		return "beta"
 	}
 	return "stable"

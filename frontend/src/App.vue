@@ -322,10 +322,15 @@ const doDeploy = async () => {
               <option value="exit">{{ t('exitOption') }}</option>
             </select>
           </div>
-          <div>
+          <div v-if="!nodeModal.selfStealDomain">
             <label class="label" for="n-sni">{{ t('sniLabel') }}</label>
             <input id="n-sni" v-model.trim="nodeModal.sni" type="text" :placeholder="t('sniPlaceholder')" class="input" autocapitalize="off">
             <p class="hint mt-1.5">{{ t('sniHint') }}</p>
+          </div>
+          <div>
+            <label class="label" for="n-self-steal">{{ t('nd.selfSteal') }}</label>
+            <input id="n-self-steal" v-model.trim="nodeModal.selfStealDomain" type="text" placeholder="site.example.com" class="input" autocapitalize="off" autocomplete="off">
+            <p class="hint mt-1.5">{{ t('nd.selfStealHint') }}</p>
           </div>
         </template>
         <div>

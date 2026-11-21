@@ -35,13 +35,17 @@ func xrayError(out []byte) string {
 // ноды по TLS 1.3 и HTTP/2. Без этого подключения к ноде будут рваться.
 // Возвращает пустую строку, если всё в порядке.
 func checkSNI(addr, serverName string) string {
+	return checkRealityTLS(addr, serverName, false)
+}
+
+func checkRealityTLS(addr, serverName string, verify bool) string {
 	d := &net.Dialer{Timeout: 5 * time.Second}
 	conn, err := tls.DialWithDialer(d, "tcp", addr, &tls.Config{
 		ServerName: serverName,
 		MinVersion: tls.VersionTLS13,
 		NextProtos: []string{"h2", "http/1.1"},
-		// Важна доступность и версия протокола, а не доверие к сертификату
-		InsecureSkipVerify: true, //nolint:gosec
+		// Для стороннего SNI достаточно TLS 1.3 и h2; свой сайт должен быть доверенным.
+		InsecureSkipVerify: !verify, //nolint:gosec
 	})
 	if err != nil {
 		return fmt.Sprintf("%s недоступен по TLS 1.3 с этой ноды: %v", serverName, err)
@@ -57,16 +61,21 @@ func checkSNI(addr, serverName string) string {
 type sniChecker struct {
 	mu      sync.Mutex
 	sni     string
+	addr    string
 	result  string
 	checked time.Time
 }
 
 func (c *sniChecker) get(sni string, check func(addr, serverName string) string) string {
+	return c.getTarget(net.JoinHostPort(sni, "443"), sni, check)
+}
+
+func (c *sniChecker) getTarget(addr, sni string, check func(addr, serverName string) string) string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if sni != c.sni || time.Since(c.checked) > 10*time.Minute {
-		c.sni = sni
-		c.result = check(net.JoinHostPort(sni, "443"), sni)
+	if sni != c.sni || addr != c.addr || time.Since(c.checked) > 10*time.Minute {
+		c.sni, c.addr = sni, addr
+		c.result = check(addr, sni)
 		c.checked = time.Now()
 	}
 	return c.result

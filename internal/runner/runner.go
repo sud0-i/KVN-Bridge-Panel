@@ -22,10 +22,11 @@ type DeployParams struct {
 	Role         string
 	RootPassword string
 	// KeyFile — SSH-ключ мастера; вместо пароля, если RootPassword пуст
-	KeyFile    string
-	PrivateKey string
-	NodeToken  string
-	MasterURL  string
+	KeyFile         string
+	PrivateKey      string
+	NodeToken       string
+	MasterURL       string
+	SelfStealDomain string
 }
 
 // Пути можно переопределить переменными окружения (удобно для локального запуска)
@@ -67,18 +68,34 @@ func run(p DeployParams) error {
 	// Секреты передаём файлом с правами 0600, а не аргументами командной строки:
 	// аргументы видны любому процессу через ps / /proc
 	v := map[string]string{
-		"ansible_user": "root",
-		"master_url":   p.MasterURL,
-		"priv_key":     p.PrivateKey,
-		"node_token":   p.NodeToken,
-		"node_role":    p.Role,
-		"agent_src":    agentSrc,
+		"ansible_user":      "root",
+		"master_url":        p.MasterURL,
+		"priv_key":          p.PrivateKey,
+		"node_token":        p.NodeToken,
+		"node_role":         p.Role,
+		"agent_src":         agentSrc,
+		"self_steal_domain": p.SelfStealDomain,
+		"node_ip":           p.IP,
 	}
 	if p.RootPassword != "" {
 		v["ansible_password"] = p.RootPassword
 	} else {
 		v["ansible_ssh_private_key_file"] = p.KeyFile
 	}
+	return runPlaybook(context.Background(), p.IP, v)
+}
+
+// ProvisionSelfSteal runs only the web site tasks, without restarting Xray or the agent.
+func ProvisionSelfSteal(ctx context.Context, ip, domain, keyFile string) error {
+	return runPlaybook(ctx, ip, map[string]string{
+		"ansible_user":                 "root",
+		"ansible_ssh_private_key_file": keyFile,
+		"self_steal_domain":            domain,
+		"node_ip":                      ip,
+	}, "--tags", "self-steal")
+}
+
+func runPlaybook(ctx context.Context, ip string, v map[string]string, options ...string) error {
 	vars, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -96,11 +113,12 @@ func run(p DeployParams) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()
 
 	// Запятая после IP нужна Ansible для работы без inventory-файла
-	cmd := exec.CommandContext(ctx, "ansible-playbook", "-i", p.IP+",", playbookPath(), "-e", "@"+f.Name())
+	args := []string{"-i", ip + ",", playbookPath(), "-e", "@" + f.Name()}
+	cmd := exec.CommandContext(ctx, "ansible-playbook", append(args, options...)...)
 	cmd.Env = append(os.Environ(), ansibleEnv()...)
 
 	var out bytes.Buffer
@@ -108,7 +126,7 @@ func run(p DeployParams) error {
 	cmd.Stderr = &out
 
 	if err := cmd.Run(); err != nil {
-		log.Printf("[ANSIBLE] Вывод %s:\n%s", p.IP, out.String())
+		log.Printf("[ANSIBLE] Вывод %s:\n%s", ip, out.String())
 		if reason := ansibleFailure(out.String()); reason != "" {
 			return fmt.Errorf("%s", reason)
 		}

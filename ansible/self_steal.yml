@@ -1,0 +1,108 @@
+---
+- name: Проверка DNS собственного сайта
+  command: "getent ahosts {{ self_steal_domain }}"
+  register: self_steal_dns
+  changed_when: false
+
+- name: Проверка адреса ноды в DNS
+  assert:
+    that:
+      - node_ip in self_steal_dns.stdout.split()
+    fail_msg: "Домен {{ self_steal_domain }} должен указывать на {{ node_ip }} без CDN"
+
+- name: Установка Caddy для собственного сайта
+  apt:
+    name: [caddy, curl, ufw]
+    state: present
+    update_cache: yes
+    policy_rc_d: 101
+
+- name: Открытие порта для ACME HTTP-01
+  ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+
+- name: Установка конфигурации сайта
+  copy:
+    dest: /etc/caddy/KVN-SelfSteal
+    mode: "0644"
+    content: |
+      {
+          admin off
+          auto_https disable_redirects
+      }
+
+      http://{{ self_steal_domain }} {
+          respond 404
+      }
+
+      https://{{ self_steal_domain }}:9444 {
+          bind 127.0.0.1
+          tls {
+              issuer acme {
+                  dir https://acme-v02.api.letsencrypt.org/directory
+                  disable_tlsalpn_challenge
+              }
+          }
+          header Content-Type "text/html; charset=utf-8"
+          respond "<!doctype html><html lang='en'><meta charset='utf-8'><title>Welcome</title><h1>Welcome</h1></html>" 200
+      }
+  register: self_steal_config
+
+- name: Установка отдельной службы сайта
+  copy:
+    dest: /etc/systemd/system/kvn-self-steal.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=KVN REALITY site
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      User=caddy
+      Group=caddy
+      StateDirectory=kvn-self-steal
+      Environment=XDG_DATA_HOME=/var/lib/kvn-self-steal
+      Environment=XDG_CONFIG_HOME=/var/lib/kvn-self-steal
+      AmbientCapabilities=CAP_NET_BIND_SERVICE
+      ExecStart=/usr/bin/caddy run --config /etc/caddy/KVN-SelfSteal --adapter caddyfile
+      Restart=on-failure
+
+      [Install]
+      WantedBy=multi-user.target
+  register: self_steal_unit
+
+- name: Запуск собственного сайта
+  systemd:
+    name: kvn-self-steal
+    enabled: yes
+    daemon_reload: "{{ self_steal_unit.changed }}"
+    state: "{{ 'restarted' if self_steal_config.changed or self_steal_unit.changed else 'started' }}"
+
+- name: Ожидание доверенного сертификата и HTTP/2 на локальном сайте
+  command:
+    argv:
+      - curl
+      - --fail
+      - --silent
+      - --show-error
+      - --noproxy
+      - "*"
+      - --max-time
+      - "5"
+      - --tlsv1.3
+      - --http2
+      - --connect-to
+      - "{{ self_steal_domain }}:443:127.0.0.1:9444"
+      - --output
+      - /dev/null
+      - --write-out
+      - "%{http_version}"
+      - "https://{{ self_steal_domain }}/"
+  register: self_steal_https
+  until: self_steal_https.rc == 0 and self_steal_https.stdout == '2'
+  retries: 30
+  delay: 3
+  changed_when: false

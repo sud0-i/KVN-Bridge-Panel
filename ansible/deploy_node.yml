@@ -11,6 +11,7 @@
     node_token: ""
     node_role: ""
     agent_src: ""
+    self_steal_domain: ""
 
   tasks:
     - name: Проверка переменных
@@ -49,6 +50,11 @@
           command: sysctl --system
           changed_when: false
           failed_when: false
+
+    - name: Подготовка собственного сайта REALITY
+      import_tasks: self_steal.yml
+      when: self_steal_domain | length > 0
+      tags: [self-steal]
 
     - name: Установка Xray (вместе с geoip.dat / geosite.dat)
       shell: bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install

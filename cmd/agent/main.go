@@ -230,6 +230,10 @@ func (a *agent) sync() {
 	// Если Dest задан (мост на сервере Мастера), маскировка идёт под свой Caddy — проверять нечего.
 	if data.Reality.Dest == "" && data.Reality.SNI != "" {
 		a.sniErr = a.sni.get(data.Reality.SNI, checkSNI)
+	} else if data.Reality.Dest != "" && data.Reality.Xver == 0 {
+		a.sniErr = a.sni.getTarget(data.Reality.Dest, data.Reality.SNI, func(addr, name string) string {
+			return checkRealityTLS(addr, name, true)
+		})
 	} else {
 		a.sniErr = ""
 	}

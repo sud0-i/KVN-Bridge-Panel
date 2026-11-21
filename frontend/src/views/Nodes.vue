@@ -9,7 +9,7 @@ import { ref, computed, onBeforeUnmount } from 'vue'
 import { t } from '../i18n'
 import { nodes, loadingNodes, routing, agentSHA, agentPending, xrayPending, nodeName, ago, fmtDateTime, bridges, exits,
   openDeploy, openRedeploy, editSNI, editLabel, editCDN, deleteNode, links, linksRange, fetchLinks,
-  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes } from '../store'
+  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes, isLocalBridge, enableSelfSteal } from '../store'
 
 const emit = defineEmits(['go'])
 
@@ -54,6 +54,34 @@ const actionsFor = ref(null)
 const actionList = (n) => ['restart-xray', ...(n.MieruVersion ? ['restart-mieru'] : []), 'restart-agent', 'reboot']
 const runAction = async (n, a) => { actionsFor.value = null; await nodeAction(n, a) }
 // Подбор SNI: пока идёт сканирование, обновляем ноды раз в 5 секунд
+const selfStealNode = ref(null)
+const selfStealDomain = ref('')
+const selfStealBusy = ref(false)
+const selfStealError = ref('')
+
+function openSelfSteal(node) {
+  selfStealNode.value = node
+  selfStealDomain.value = ''
+  selfStealError.value = ''
+}
+
+function closeSelfSteal() {
+  if (!selfStealBusy.value) selfStealNode.value = null
+}
+
+async function applySelfSteal() {
+  selfStealBusy.value = true
+  selfStealError.value = ''
+  try {
+    await enableSelfSteal(selfStealNode.value, selfStealDomain.value)
+    selfStealNode.value = null
+  } catch (error) {
+    selfStealError.value = error.message
+  } finally {
+    selfStealBusy.value = false
+  }
+}
+
 const sniFor = ref(null) // IP ноды, для которой открыто окно
 const sniNode = computed(() => nodes.value.find(n => n.IP === sniFor.value) || null)
 const sniScanning = (n) => n.PendingAction === 'scan-sni' || n.ActionResult === 'scan-sni: отправлено'
@@ -135,8 +163,9 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
         <dl class="flex flex-col text-[13px]">
           <div class="flex justify-between gap-4 py-2 border-t border-line">
             <dt class="text-mute">{{ t('nd.sni') }}</dt>
-            <dd class="text-right break-all">{{ n.RealityDest ? t('nd.ownSite', { d: n.Domain || n.SNI }) : (n.SNI || '—') }}
-              <button v-if="!n.RealityDest" type="button" class="ml-2 text-acc hover:text-acc-hover" @click="openSNI(n)">{{ t('sn.pick') }}</button></dd>
+            <dd class="text-right break-all">{{ n.RealityDest ? t('nd.ownSite', { d: n.SelfStealDomain || n.SNI }) : (n.SNI || '—') }}
+              <button v-if="!n.RealityDest" type="button" class="ml-2 text-acc hover:text-acc-hover" @click="openSNI(n)">{{ t('sn.pick') }}</button>
+              <button v-if="!isLocalBridge(n) && !n.SelfStealDomain && n.IsOnline && hasPanelKey(n)" type="button" class="ml-2 text-acc hover:text-acc-hover" @click="openSelfSteal(n)">{{ t('nd.selfSteal') }}</button></dd>
           </div>
           <div class="flex justify-between items-center gap-4 py-2 border-t border-line">
             <dt class="text-mute">CDN</dt>
@@ -182,14 +211,14 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
         </dl>
 
         <div class="flex items-center gap-2 mt-auto">
-          <span class="text-xs text-dim flex-1 min-w-0">{{ n.RealityDest ? t('nd.onMaster') + ' · ' : '' }}{{ t('nd.synced', { ago: ago(n.LastSeen) }) }}
+          <span class="text-xs text-dim flex-1 min-w-0">{{ isLocalBridge(n) ? t('nd.onMaster') + ' · ' : '' }}{{ t('nd.synced', { ago: ago(n.LastSeen) }) }}
             <template v-if="n.PendingAction"> · <span class="text-warn">{{ t('act.pending', { a: t('act.name.' + n.PendingAction) }) }}</span></template>
             <template v-else-if="n.ActionResult"> · <span :class="n.ActionResult.includes(': ok') ? 'text-ok' : n.ActionResult.includes('ошибка') || n.ActionResult.includes('отменено') ? 'text-err' : ''">{{ n.ActionResult }}</span></template></span>
           <button v-if="hasPanelKey(n)" type="button" class="icon-btn" :aria-label="t('tm.open')" :title="t('tm.open')" @click="terminalFor = n"><Icon name="terminal" :size="16" /></button>
           <button v-if="n.IsOnline" type="button" class="icon-btn" :aria-label="t('act.title')" :title="t('act.title')" @click="actionsFor = n"><Icon name="power" :size="16" /></button>
           <button type="button" class="icon-btn" :aria-label="t('labelHint')" :title="t('labelHint')" @click="editLabel(n)"><Icon name="tag" :size="16" /></button>
           <button v-if="!n.RealityDest" type="button" class="icon-btn" :aria-label="t('editSNI')" :title="t('editSNI')" @click="editSNI(n)"><Icon name="edit" :size="16" /></button>
-          <button v-if="!n.RealityDest" type="button" class="icon-btn" :aria-label="t('redeploy')" :title="t('redeploy')" @click="openRedeploy(n.IP)"><Icon name="refresh" :size="16" /></button>
+          <button v-if="!isLocalBridge(n)" type="button" class="icon-btn" :aria-label="t('redeploy')" :title="t('redeploy')" @click="openRedeploy(n.IP)"><Icon name="refresh" :size="16" /></button>
           <button type="button" class="icon-btn text-err hover:text-err" :aria-label="t('delete')" :title="t('delete')" @click="deleteNode(n)"><Icon name="trash" :size="16" /></button>
         </div>
       </section>
@@ -246,6 +275,17 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
     </section>
   </div>
   <Terminal v-if="terminalFor" :node="terminalFor" @close="terminalFor = null" @go="(v) => emit('go', v)" />
+  <Sheet v-if="selfStealNode" :title="t('nd.selfSteal')" @close="closeSelfSteal">
+    <label for="self-steal-domain" class="label">{{ t('nd.selfStealDomain') }}</label>
+    <input id="self-steal-domain" v-model.trim="selfStealDomain" type="text" placeholder="site.example.com" autocapitalize="off" class="input" :disabled="selfStealBusy">
+    <p class="hint">{{ t('nd.selfStealHint') }}</p>
+    <p class="text-xs text-warn">{{ t('nd.selfStealSubscriptions') }}</p>
+    <p v-if="selfStealError" role="alert" class="text-sm text-err">{{ selfStealError }}</p>
+    <p v-if="selfStealBusy" role="status" class="text-sm text-mute">{{ t('nd.selfStealPending') }}</p>
+    <template #footer>
+      <button type="button" class="btn btn-primary" :disabled="!selfStealDomain || selfStealBusy" @click="applySelfSteal">{{ t('save') }}</button>
+    </template>
+  </Sheet>
   <Sheet v-if="sniNode" :title="t('sn.title', { name: nodeName(sniNode) })" @close="sniFor = null">
     <p class="text-[13px] text-mute leading-relaxed">{{ t('sn.hint') }}</p>
     <p class="text-xs text-dim leading-relaxed">{{ t('sn.warn') }}</p>

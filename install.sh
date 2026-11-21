@@ -8,8 +8,8 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 NC='\033[0m'
 
-IMAGE="${KVN_IMAGE:-ghcr.io/sud0-i/kvn-bridge-panel:latest}"
-REPO_RAW="https://raw.githubusercontent.com/sud0-i/KVN-Bridge-Panel/main"
+REPO_RAW="https://raw.githubusercontent.com/sud0-i/KVN-Bridge-Panel"
+PANEL_HTTPS_PORT=9443
 INSTALL_DIR="/opt/kvn-panel"
 
 fail() { echo -e "${RED}❌ $*${NC}"; exit 1; }
@@ -54,12 +54,33 @@ random_string() {
 # и команда, которая тоже читает stdin (docker compose exec, apt-get…), «съедала» бы остаток
 # скрипта — установка молча обрывалась. Функцию bash читает целиком до запуска.
 main() {
+CHANNEL=stable
+SINGLE_IP=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --beta) CHANNEL=beta ;;
+        --no-domain) SINGLE_IP=1 ;;
+        *) fail "Неизвестный параметр: $1 (доступны --beta и --no-domain)" ;;
+    esac
+    shift
+done
+if [ "$CHANNEL" = beta ]; then
+    IMAGE="${KVN_IMAGE:-ghcr.io/sud0-i/kvn-bridge-panel:beta}"
+    REPO_RAW="$REPO_RAW/beta"
+else
+    IMAGE="${KVN_IMAGE:-ghcr.io/sud0-i/kvn-bridge-panel:latest}"
+    REPO_RAW="$REPO_RAW/main"
+fi
 echo -e "${BLUE}=========================================${NC}"
 echo -e "${GREEN}🚀 Установка KVN Smart VPN Cluster${NC}"
 echo -e "${BLUE}=========================================${NC}"
 
 # 1. Проверка прав Root
 [ "$EUID" -eq 0 ] || fail "Скрипт необходимо запускать от имени root (sudo)."
+
+if [ "$SINGLE_IP" = 1 ] && [ -e "$INSTALL_DIR/.env" ]; then
+    fail "Режим без домена рассчитан на новую установку. Настройки уже существуют в $INSTALL_DIR/.env."
+fi
 
 # 2. Установка Docker, если его нет
 if ! command -v docker &> /dev/null; then
@@ -72,36 +93,62 @@ fi
 
 # 3. Диалог с пользователем (читаем с терминала: скрипт может прийти через curl | bash)
 echo ""
-read -p "🌐 Введите ваш домен (например, panel.mysite.com): " DOMAIN </dev/tty
-[ -n "$DOMAIN" ] || fail "Домен обязателен!"
+if [ "$SINGLE_IP" = 0 ]; then
+    read -rp "🌐 Домен панели (Enter — один VPS без домена): " DOMAIN </dev/tty
+    if [ -z "$DOMAIN" ]; then
+        SINGLE_IP=1
+        [ ! -e "$INSTALL_DIR/.env" ] || fail "В $INSTALL_DIR уже есть настройки панели."
+    fi
+fi
 
-read -p "🔑 Придумайте пароль администратора (Enter = автогенерация): " ADMIN_PASS </dev/tty
+read -rp "🔑 Придумайте пароль администратора (Enter = автогенерация): " ADMIN_PASS </dev/tty
 if [ -z "$ADMIN_PASS" ]; then
     ADMIN_PASS=$(random_string 16)
     echo -e "Сгенерирован пароль: ${GREEN}$ADMIN_PASS${NC}"
 fi
 
-echo ""
-echo "Можно сразу сделать этот сервер ещё и мостом — точкой входа (VPN на порту 443)."
-echo "Удобно для старта, но для постоянной работы Мастер лучше держать отдельно."
-read -p "🌉 Установить мост на этот сервер? [y/N]: " WITH_BRIDGE </dev/tty
-case "$WITH_BRIDGE" in [yYдД]*) WITH_BRIDGE=1 ;; *) WITH_BRIDGE=0 ;; esac
-
+WITH_BRIDGE=1
 WITH_WARP=0
-if [ "$WITH_BRIDGE" = 1 ]; then
+if [ "$SINGLE_IP" = 0 ]; then
     echo ""
-    echo "Если выходных нод не будет, этот сервер сам выпускает трафик в интернет (одиночный режим)."
-    echo "Cloudflare WARP позволит отправлять часть сайтов через Cloudflare (вкладка «Маршрутизация»)."
-    read -p "☁️ Поставить Cloudflare WARP? [Y/n]: " WITH_WARP </dev/tty
-    case "$WITH_WARP" in [nNнН]*) WITH_WARP=0 ;; *) WITH_WARP=1 ;; esac
+    echo "Можно сразу сделать этот сервер ещё и мостом — точкой входа (VPN на порту 443)."
+    echo "Удобно для старта, но для постоянной работы Мастер лучше держать отдельно."
+    read -p "🌉 Установить мост на этот сервер? [y/N]: " WITH_BRIDGE </dev/tty
+    case "$WITH_BRIDGE" in [yYдД]*) WITH_BRIDGE=1 ;; *) WITH_BRIDGE=0 ;; esac
+
+    if [ "$WITH_BRIDGE" = 1 ]; then
+        echo ""
+        echo "Если выходных нод не будет, этот сервер сам выпускает трафик в интернет (одиночный режим)."
+        echo "Cloudflare WARP позволит отправлять часть сайтов через Cloudflare (вкладка «Маршрутизация»)."
+        read -p "☁️ Поставить Cloudflare WARP? [Y/n]: " WITH_WARP </dev/tty
+        case "$WITH_WARP" in [nNнН]*) WITH_WARP=0 ;; *) WITH_WARP=1 ;; esac
+    fi
 fi
 
 SERVER_IP=""
-if [ "$WITH_BRIDGE" = 1 ]; then
+if [ "$SINGLE_IP" = 1 ]; then
+    detected_ip=$(curl -4fsS --max-time 5 https://checkip.amazonaws.com || true)
+    read -rp "Публичный IPv4 сервера [${detected_ip:-введите IP}]: " SERVER_IP </dev/tty
+    SERVER_IP=${SERVER_IP:-$detected_ip}
+    [[ "$SERVER_IP" =~ ^(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})$ ]] \
+        || fail "Нужен публичный IPv4-адрес сервера."
+    IFS=. read -r a b c d <<< "$SERVER_IP"
+    if (( a == 0 || a == 10 || a == 127 || a >= 224 || b > 255 || c > 255 || d > 255 ||
+          (a == 100 && b >= 64 && b <= 127) || (a == 169 && b == 254) ||
+          (a == 172 && b >= 16 && b <= 31) || (a == 192 && b == 168) )); then
+        fail "Нужен публичный IPv4-адрес сервера."
+    fi
+    DOMAIN=$SERVER_IP
+    MASTER_URL="https://$SERVER_IP:$PANEL_HTTPS_PORT"
+elif [ "$WITH_BRIDGE" = 1 ]; then
     # Домен должен смотреть на этот сервер — иначе не выдастся сертификат
     SERVER_IP=$(getent ahostsv4 "$DOMAIN" | awk 'NR==1{print $1}')
     [ -n "$SERVER_IP" ] || fail "Домен $DOMAIN не резолвится. Создайте A-запись на IP этого сервера."
     echo -e "IP сервера (по DNS): ${GREEN}$SERVER_IP${NC}"
+fi
+
+if [ "$SINGLE_IP" = 0 ]; then
+    MASTER_URL="https://$DOMAIN"
 fi
 
 # 4. Генерация ключей
@@ -118,6 +165,8 @@ cd "$INSTALL_DIR"
 # 6. Запись файла .env (читать может только root)
 (umask 077; cat > .env <<EOF
 DOMAIN=$DOMAIN
+MASTER_URL=$MASTER_URL
+PANEL_CHANNEL=$CHANNEL
 ADMIN_PASSWORD=$ADMIN_PASS
 JWT_SECRET=$JWT_SECRET
 ADMIN_PATH=$ADMIN_PATH
@@ -125,7 +174,38 @@ EOF
 )
 
 # 7. Caddyfile и docker-compose.yml
-if [ "$WITH_BRIDGE" = 1 ]; then
+if [ "$SINGLE_IP" = 1 ]; then
+    cat > Caddyfile <<'EOF'
+{
+    auto_https disable_redirects
+    default_sni {$DOMAIN}
+}
+
+http:// {
+    respond 404
+}
+
+https://{$DOMAIN}:{$PANEL_HTTPS_PORT} {
+    tls {
+        issuer acme {
+            dir https://acme-v02.api.letsencrypt.org/directory
+            profile shortlived
+            disable_tlsalpn_challenge
+        }
+    }
+    reverse_proxy master:8080
+}
+EOF
+    MASTER_PORTS='    ports:
+      - "127.0.0.1:8080:8080"'
+    CADDY_PORTS="      - \"80:80\"
+      - \"$PANEL_HTTPS_PORT:$PANEL_HTTPS_PORT\""
+    if command -v ufw >/dev/null && LC_ALL=C ufw status | grep -q '^Status: active'; then
+        ufw allow 80/tcp </dev/null
+        ufw allow 443/tcp </dev/null
+        ufw allow "$PANEL_HTTPS_PORT/tcp" </dev/null
+    fi
+elif [ "$WITH_BRIDGE" = 1 ]; then
     # Порт 443 займёт Xray; Caddy слушает только 127.0.0.1:8443
     curl -fsSL "$REPO_RAW/Caddyfile.combined" -o Caddyfile
     MASTER_PORTS='    ports:
@@ -162,6 +242,7 @@ $MASTER_PORTS
 $CADDY_PORTS
     environment:
       - DOMAIN=\${DOMAIN}
+      - PANEL_HTTPS_PORT=$PANEL_HTTPS_PORT
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
@@ -209,7 +290,11 @@ if [ "$WITH_BRIDGE" = 1 ]; then
     done
 
     # Мастер регистрирует ноду и отдаёт её токен и приватный ключ
-    NODE_ENV=$(docker compose exec -T master ./kvn-master local-bridge -ip "$SERVER_IP" -domain "$DOMAIN" </dev/null 2>/dev/null) \
+    bridge_args=(-ip "$SERVER_IP" -domain "$DOMAIN")
+    if [ "$SINGLE_IP" = 1 ]; then
+        bridge_args=(-ip "$SERVER_IP" -direct)
+    fi
+    NODE_ENV=$(docker compose exec -T master ./kvn-master local-bridge "${bridge_args[@]}" </dev/null 2>/dev/null) \
         || fail "Не удалось зарегистрировать мост (docker compose logs master)"
 
     mkdir -p /etc/vpn-agent
@@ -244,10 +329,25 @@ EOF
     systemctl restart vpn-agent
 fi
 
+if [ "$SINGLE_IP" = 1 ]; then
+    echo "Ожидаем сертификат HTTPS и запуск VPN. Для выпуска сертификата нужен публичный TCP 80."
+    ready=0
+    for _ in $(seq 1 45); do
+        if curl -fsS --max-time 3 --noproxy '*' \
+            --connect-to "$SERVER_IP:$PANEL_HTTPS_PORT:127.0.0.1:$PANEL_HTTPS_PORT" \
+            "$MASTER_URL/" >/dev/null && ss -H -ltnp 'sport = :443' | grep -q '"xray"'; then
+            ready=1
+            break
+        fi
+        sleep 2
+    done
+    [ "$ready" = 1 ] || fail "HTTPS или VPN ещё не готовы. Ожидаемый адрес: $MASTER_URL/$ADMIN_PATH/. Проверьте docker compose logs caddy и journalctl -u vpn-agent."
+fi
+
 echo -e "\n${BLUE}=========================================${NC}"
 echo -e "${GREEN}✅ Установка полностью завершена!${NC}"
-echo -e "🌐 Панель доступна по адресу: ${GREEN}https://$DOMAIN/$ADMIN_PATH/${NC}"
-echo -e "${YELLOW}   Сохраните этот адрес: по https://$DOMAIN открывается заглушка. Путь — ADMIN_PATH в $INSTALL_DIR/.env${NC}"
+echo -e "🌐 Панель доступна по адресу: ${GREEN}$MASTER_URL/$ADMIN_PATH/${NC}"
+echo -e "${YELLOW}   Сохраните этот адрес: по $MASTER_URL открывается заглушка. Путь — ADMIN_PATH в $INSTALL_DIR/.env${NC}"
 echo -e "🔑 Пароль: ${GREEN}$ADMIN_PASS${NC}"
 echo -e "⚙️ Директория с данными: $INSTALL_DIR"
 if [ "$WITH_BRIDGE" = 1 ]; then

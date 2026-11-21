@@ -56,22 +56,28 @@ func (u User) CanConnect(now time.Time) bool {
 	return true
 }
 
-// Node - удаленный сервер (мост или экзит)
+// IsLocalBridge учитывает установки, сделанные до появления поля LocalBridge.
+func (n Node) IsLocalBridge() bool {
+	return n.LocalBridge || (n.RealityDest != "" && n.SelfStealDomain == "")
+}
+
+// Node — локальный мост или удалённый сервер.
 type Node struct {
 	IP     string `gorm:"primaryKey"`
 	Type   string `gorm:"not null"` // "bridge" или "exit"
 	Domain string
 	SNI    string
 	// RealityDest — куда Reality отправляет посторонних (пусто = SNI:443).
-	// Для режима «мастер + мост» это локальный Caddy с панелью.
-	RealityDest string
-	RealityXver int
-	PubKey      string
-	SID         string
-	LinkUUID    string // мост авторизуется на экзитах под этим UUID
-	TokenHash   string `gorm:"index" json:"-"` // sha256 от токена агента, сам токен не храним
-	SSPass      string `json:"-"`
-	XHTTPPath   string
+	RealityDest     string
+	RealityXver     int
+	LocalBridge     bool
+	SelfStealDomain string
+	PubKey          string
+	SID             string
+	LinkUUID        string // мост авторизуется на экзитах под этим UUID
+	TokenHash       string `gorm:"index" json:"-"` // sha256 от токена агента, сам токен не храним
+	SSPass          string `json:"-"`
+	XHTTPPath       string
 	// Label — подпись в приложениях пользователей, например «🇳🇱 Амстердам». Пусто — «KVN <адрес>».
 	Label string
 	// CDNDomain — домен ноды за CDN (Cloudflare и т.п.): «cdn.example.com» → IP ноды через CDN.

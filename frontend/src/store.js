@@ -224,7 +224,7 @@ export const fetchNodes = async () => {
 
 // Окно установки ноды: null — закрыто; redeployIP — «переустановить эту ноду»
 export const nodeModal = ref(null)
-export const openDeploy = () => { nodeModal.value = { redeployIP: '', ip: '', type: 'bridge', sni: '', password: '', message: '' } }
+export const openDeploy = () => { nodeModal.value = { redeployIP: '', ip: '', type: 'bridge', sni: '', selfStealDomain: '', password: '', message: '' } }
 export const openRedeploy = (ip) => {
   const n = nodes.value.find(x => x.IP === ip)
   nodeModal.value = { redeployIP: ip, ip: '', type: 'bridge', sni: '', password: '', message: '', byKey: !!n && hasPanelKey(n) }
@@ -235,7 +235,7 @@ export const deployNode = async () => {
   if ((!m.ip && !m.redeployIP) || (!m.password && !m.byKey)) return
   const res = m.redeployIP
     ? await apiCall(`api/nodes/${encodeURIComponent(m.redeployIP)}/redeploy`, { method: 'POST', body: JSON.stringify({ password: m.password }) })
-    : await apiCall('api/nodes', { method: 'POST', body: JSON.stringify({ ip: m.ip, type: m.type, password: m.password, sni: m.sni }) })
+    : await apiCall('api/nodes', { method: 'POST', body: JSON.stringify({ ip: m.ip, type: m.type, password: m.password, sni: m.sni, self_steal_domain: m.selfStealDomain }) })
   const data = await res.json()
   if (!res.ok) {
     alert(data.error || t('deployError'))
@@ -264,8 +264,17 @@ export const editSNI = async (node) => {
   await patchNode(node, { sni: sni.trim() })
 }
 
+export const enableSelfSteal = async (node, domain) => {
+  const res = await apiCall(`api/nodes/${encodeURIComponent(node.IP)}/self-steal`, {
+    method: 'POST', body: JSON.stringify({ domain })
+  })
+  if (!res.ok) throw new Error(await readError(res))
+  await fetchNodes()
+}
+
 // Обновление панели: выполняет агент моста на сервере мастера (снаружи контейнера)
-export const panelNode = computed(() => nodes.value.find(n => n.RealityDest) || null)
+export const isLocalBridge = (n) => n.LocalBridge || (!!n.RealityDest && !n.SelfStealDomain)
+export const panelNode = computed(() => nodes.value.find(isLocalBridge) || null)
 export const panelUpdating = (n) => !!n && (n.PendingAction === 'update-panel' || n.ActionResult === 'update-panel: отправлено')
 export const setPanelChannel = async (ch) => {
   const res = await apiCall('api/panel-channel', { method: 'PUT', body: JSON.stringify({ channel: ch }) })
@@ -504,7 +513,7 @@ export const fetchMetrics = async () => {
 export const metricsOf = (ip) => metrics.value?.nodes?.find(n => n.node === ip) || null
 
 export const nodeAction = async (node, action) => {
-  if (!confirm(t('act.confirm.' + action, { name: nodeName(node) }) + (node.RealityDest && action === 'reboot' ? '\n\n' + t('act.masterWarn') : ''))) return
+  if (!confirm(t('act.confirm.' + action, { name: nodeName(node) }) + (isLocalBridge(node) && action === 'reboot' ? '\n\n' + t('act.masterWarn') : ''))) return
   const res = await apiCall(`api/nodes/${encodeURIComponent(node.IP)}/action`, { method: 'POST', body: JSON.stringify({ action }) })
   if (!res.ok) {
     alert(await readError(res))

@@ -69,6 +69,18 @@ for your own people without assembling configs by hand, this panel is for that.
   bridge in your own country and the exit node abroad.
 - The panel and a bridge can share a server, and a single server is enough to get started.
 
+## One VPS without a domain (beta)
+
+On a fresh Debian or Ubuntu server with a public IPv4 address, allow inbound TCP 80, 443 and 9443 in your hosting firewall. Run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sud0-i/KVN-Bridge-Panel/beta/install.sh | sudo bash -s -- --beta --no-domain
+```
+
+Set a password and confirm the IP address. The installer puts the panel and bridge on the same server. The panel and subscriptions use `https://<IP>:9443`; REALITY uses TCP 443. Let's Encrypt needs TCP 80 to issue and renew the IP certificate. Create a user in the panel and add the subscription to a VPN app. You can add an exit node later.
+
+**Own site for REALITY.** Provide a hostname in the remote node install form or in the SNI row of an online node with the panel SSH key. Point DNS directly to the node IP and keep TCP 80 accessible for Caddy. Caddy serves a static page on the node. For an existing node, its current SNI stays active if certificate issuance fails. Once the change succeeds, refresh subscriptions and re-import any standalone profiles.
+
 ## Quick start
 
 1. Point your domain at the server and run the installer:

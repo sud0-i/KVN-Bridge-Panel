@@ -37,6 +37,10 @@ export const messages = {
       quota: '{name}: {pct}% лимита', quotaText: '{used} из {total} ГБ.'
     },
     nd: {
+      selfSteal: 'Свой сайт для REALITY', selfStealDomain: 'Домен сайта',
+      selfStealHint: 'Необязательно. Укажите домен с DNS-записью на IP ноды без CDN. TCP 80 нужен для выпуска и продления сертификата.',
+      selfStealSubscriptions: 'После смены SNI обновите подписки в VPN-приложениях и заново импортируйте отдельные профили.',
+      selfStealPending: 'Ждём выпуска сертификата. Это может занять несколько минут.',
       roleBridge: 'мост', roleExit: 'выход',
       sni: 'Маскировка (SNI)', ownSite: '{d} — свой сайт', protocols: 'Протоколы', exits: 'Выходные ноды',
       link: 'Связь с мостом', linkXHTTP: 'XHTTP, 16–32 потока', linkCDN: 'через CDN {d}',
@@ -338,6 +342,10 @@ export const messages = {
       quota: '{name}: {pct}% of limit', quotaText: '{used} of {total} GB.'
     },
     nd: {
+      selfSteal: 'Own site for REALITY', selfStealDomain: 'Site domain',
+      selfStealHint: 'Optional. Point the domain to the node IP without a CDN. TCP 80 is needed to issue and renew the certificate.',
+      selfStealSubscriptions: 'After changing SNI, refresh subscriptions in VPN apps and re-import standalone profiles.',
+      selfStealPending: 'Waiting for the certificate. This can take a few minutes.',
       roleBridge: 'bridge', roleExit: 'exit',
       sni: 'Camouflage (SNI)', ownSite: '{d} — own site', protocols: 'Protocols', exits: 'Exit nodes',
       link: 'Link to bridge', linkXHTTP: 'XHTTP, 16–32 streams', linkCDN: 'via CDN {d}',

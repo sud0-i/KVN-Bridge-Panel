@@ -2,8 +2,10 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -15,11 +17,12 @@ import (
 
 // Config — настройки Мастера (читаются из окружения в main)
 type Config struct {
-	AdminPassword string
-	JWTSecret     []byte
-	MasterURL     string // адрес, по которому агенты ходят к Мастеру
-	DefaultSNI    string
-	BridgeDirect  []string // начальное значение правил «напрямую с моста» (BRIDGE_DIRECT)
+	AdminPassword       string
+	JWTSecret           []byte
+	MasterURL           string // адрес, по которому агенты ходят к Мастеру
+	DefaultSNI          string
+	DefaultPanelChannel string
+	BridgeDirect        []string // начальное значение правил «напрямую с моста» (BRIDGE_DIRECT)
 	// AdminPath — секретный путь панели («/abc…», см. NormalizeAdminPath). Пусто — в корне.
 	AdminPath   string
 	FrontendDir string // собранный Vue; пусто — интерфейс не раздаём (тесты)
@@ -39,8 +42,10 @@ type Server struct {
 	cfg      Config
 	db       *gorm.DB
 	// deploy запускает деплой в фоне; вынесен в поле, чтобы в тестах не запускать настоящий Ansible
-	deploy func(runner.DeployParams)
-	now    func() time.Time
+	deploy             func(runner.DeployParams)
+	provisionSelfSteal func(context.Context, string, string, string) error
+	selfStealJobs      sync.Map
+	now                func() time.Time
 	// sshAddr — адрес SSH ноды; nil — IP:22 (в тестах — локальный сервер)
 	sshAddr func(ip string) string
 	term    terminals
@@ -56,7 +61,7 @@ func New(cfg Config, db *gorm.DB) *Server {
 		keyPath = filepath.Join(filepath.Dir(envOr("DB_PATH", "data/db.sqlite")), "ssh", "id_ed25519")
 	}
 	return &Server{cfg: cfg, db: db, deploy: func(p runner.DeployParams) { go runner.DeployNode(p) }, now: time.Now,
-		agentBin: &agentBinary{path: bin}, sshKey: &masterKey{path: keyPath}}
+		agentBin: &agentBinary{path: bin}, sshKey: &masterKey{path: keyPath}, provisionSelfSteal: runner.ProvisionSelfSteal}
 }
 
 // Register вешает все роуты на Echo
@@ -89,6 +94,7 @@ func (s *Server) Register(e *echo.Echo) {
 	api.GET("/nodes", s.listNodes, admin)
 	api.POST("/nodes", s.createNode, admin)
 	api.PATCH("/nodes/:ip", s.updateNode, admin)
+	api.POST("/nodes/:ip/self-steal", s.enableSelfSteal, admin)
 	api.POST("/nodes/:ip/redeploy", s.redeployNode, admin)
 	api.DELETE("/nodes/:ip", s.deleteNode, admin)
 

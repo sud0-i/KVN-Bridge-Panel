@@ -20,6 +20,10 @@ cat > "$T/bin/curl" <<STUB
 #!/bin/bash
 prev=""; for a in "\$@"; do [ "\$prev" = "-o" ] && cp "$ROOT/Caddyfile.combined" "\$a"; prev=\$a; done
 STUB
+cat > "$T/bin/ss" <<'STUB'
+#!/bin/bash
+echo 'users:(("xray",pid=42,fd=4))'
+STUB
 printf '#!/bin/bash\n' > "$T/bin/systemctl"
 printf '#!/bin/bash\n' > "$T/bin/xray"
 printf '#!/bin/bash\n' > "$T/bin/modprobe"
@@ -52,9 +56,11 @@ make_copy "<\\&3" > "$T/install-pipe.sh"  # ответы — через деск
 
 run() {
     rm -rf "$T/opt" "$T/etc/vpn-agent"
-    printf '%b' "$1" | PATH="$T/bin:$PATH" bash "$T/install.sh" > "$T/out.log" 2>&1 \
-        || { cat "$T/out.log"; echo "FAIL: $2"; exit 1; }
-    grep -q "Установка полностью завершена" "$T/out.log" || { cat "$T/out.log"; echo "FAIL: $2"; exit 1; }
+    local answers=$1 scenario=$2
+    shift 2
+    printf '%b' "$answers" | PATH="$T/bin:$PATH" bash "$T/install.sh" "$@" > "$T/out.log" 2>&1 \
+        || { cat "$T/out.log"; echo "FAIL: $scenario"; exit 1; }
+    grep -q "Установка полностью завершена" "$T/out.log" || { cat "$T/out.log"; echo "FAIL: $scenario"; exit 1; }
 }
 
 # 1. Только мастер, пароль сгенерирован (Enter)
@@ -82,6 +88,18 @@ printf '#!/bin/bash\nexit 1\n' > "$T/bin/warp-cli"
 run 'panel.example.com\nmypass\ny\ny\n' "WARP с ошибкой"
 grep -q "WARP не поставился" "$T/out.log" || { cat "$T/out.log"; echo "FAIL: нет предупреждения"; exit 1; }
 ! grep -q "Установка прервана" "$T/out.log" || { cat "$T/out.log"; echo "FAIL: сбой WARP не должен выглядеть как обрыв установки"; exit 1; }
+
+# Один VPS, IPv4 задан вручную, все компоненты из beta.
+run 'mypass\n203.0.113.7\n' "без домена, beta" --no-domain --beta
+grep -q '^MASTER_URL=https://203.0.113.7:9443$' "$T/opt/.env"
+grep -q '^PANEL_CHANNEL=beta$' "$T/opt/.env"
+grep -q 'kvn-bridge-panel:beta' "$T/opt/docker-compose.yml"
+grep -q 'profile shortlived' "$T/opt/Caddyfile"
+grep -Eq 'https://203\.0\.113\.7:9443/[A-Za-z0-9]{24}/' "$T/out.log"
+
+# То же через пустой ответ на вопрос о домене.
+run '\nmypass\n203.0.113.7\n' "без домена, выбор в диалоге"
+grep -q '^MASTER_URL=https://203.0.113.7:9443$' "$T/opt/.env"
 
 # 5. Как в жизни: curl … | bash. Скрипт приходит через stdin (ответы — отдельно, как с терминала),
 #    а docker compose exec, apt-get и прочие могут читать stdin. Они не должны «съесть» остаток

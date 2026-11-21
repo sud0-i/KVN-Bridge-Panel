@@ -27,13 +27,14 @@ func main() {
 	}
 
 	cfg := api.Config{
-		AdminPassword: os.Getenv("ADMIN_PASSWORD"),
-		JWTSecret:     []byte(os.Getenv("JWT_SECRET")),
-		MasterURL:     strings.TrimRight(os.Getenv("MASTER_URL"), "/"),
-		DefaultSNI:    envOr("DEFAULT_SNI", "www.microsoft.com"),
-		BridgeDirect:  splitList(os.Getenv("BRIDGE_DIRECT")),
-		FrontendDir:   "frontend/dist",
-		SiteDir:       envOr("SITE_DIR", "data/site"),
+		AdminPassword:       os.Getenv("ADMIN_PASSWORD"),
+		JWTSecret:           []byte(os.Getenv("JWT_SECRET")),
+		MasterURL:           strings.TrimRight(os.Getenv("MASTER_URL"), "/"),
+		DefaultSNI:          envOr("DEFAULT_SNI", "www.microsoft.com"),
+		DefaultPanelChannel: os.Getenv("PANEL_CHANNEL"),
+		BridgeDirect:        splitList(os.Getenv("BRIDGE_DIRECT")),
+		FrontendDir:         "frontend/dist",
+		SiteDir:             envOr("SITE_DIR", "data/site"),
 	}
 	adminPath, err := api.NormalizeAdminPath(os.Getenv("ADMIN_PATH"))
 	if err != nil {
@@ -114,25 +115,28 @@ func localBridge(args []string) error {
 	ip := fs.String("ip", "", "публичный IP сервера")
 	domain := fs.String("domain", os.Getenv("DOMAIN"), "домен панели")
 	dest := fs.String("dest", "127.0.0.1:8443", "адрес локального Caddy")
+	direct := fs.Bool("direct", false, "мост без домена панели")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	parsed := net.ParseIP(*ip)
-	if parsed == nil || *domain == "" {
+	if parsed == nil || (!*direct && *domain == "") {
 		return fmt.Errorf("нужны корректные -ip и -domain")
+	}
+
+	spec := api.NodeSpec{
+		IP: parsed.String(), Role: protocol.RoleBridge, LocalBridge: true,
+		SNI: *domain, Domain: *domain, Dest: *dest, Xver: 1,
+	}
+	if *direct {
+		spec.SNI = envOr("DEFAULT_SNI", "www.microsoft.com")
+		spec.Domain, spec.Dest, spec.Xver = "", "", 0
 	}
 
 	// Повторная установка: пересоздаём ноду с новыми ключами
 	db.DB.Where("ip = ?", parsed.String()).Delete(&models.Node{})
 
-	_, secrets, err := api.CreateNode(db.DB, api.NodeSpec{
-		IP:     parsed.String(),
-		Role:   protocol.RoleBridge,
-		SNI:    *domain,
-		Domain: *domain,
-		Dest:   *dest,
-		Xver:   1, // Caddy получит настоящий IP клиента через PROXY protocol
-	})
+	_, secrets, err := api.CreateNode(db.DB, spec)
 	if err != nil {
 		return err
 	}

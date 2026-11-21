@@ -20,6 +20,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const selfStealTarget = "127.0.0.1:9444"
+
 var hostnameRe = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$`)
 
 func (s *Server) listNodes(c echo.Context) error {
@@ -60,11 +62,12 @@ func (s *Server) aliveNodes(role string) ([]models.Node, error) {
 // Добавить и развернуть новую ноду
 func (s *Server) createNode(c echo.Context) error {
 	var req struct {
-		IP       string `json:"ip"`
-		Type     string `json:"type"`     // "bridge" или "exit"
-		Password string `json:"password"` // Пароль не храним в БД, используем только для Ansible!
-		SNI      string `json:"sni"`      // необязательно
-		Domain   string `json:"domain"`   // необязательно, для ссылок подписки
+		IP              string `json:"ip"`
+		Type            string `json:"type"`     // "bridge" или "exit"
+		Password        string `json:"password"` // Пароль не храним в БД, используем только для Ansible!
+		SNI             string `json:"sni"`      // необязательно
+		SelfStealDomain string `json:"self_steal_domain"`
+		Domain          string `json:"domain"` // необязательно, для ссылок подписки
 	}
 	if err := c.Bind(&req); err != nil {
 		return jsonError(c, http.StatusBadRequest, "Неверный формат")
@@ -84,6 +87,14 @@ func (s *Server) createNode(c echo.Context) error {
 	if sni == "" {
 		sni = s.cfg.DefaultSNI
 	}
+	selfStealDomain := strings.ToLower(strings.TrimSpace(req.SelfStealDomain))
+	dest := ""
+	if selfStealDomain != "" {
+		if !validSelfStealDomain(selfStealDomain) {
+			return jsonError(c, http.StatusBadRequest, "Укажите корректный домен своего сайта")
+		}
+		sni, dest = selfStealDomain, selfStealTarget
+	}
 	if !hostnameRe.MatchString(sni) {
 		return jsonError(c, http.StatusBadRequest, "Некорректный SNI")
 	}
@@ -93,10 +104,12 @@ func (s *Server) createNode(c echo.Context) error {
 	}
 
 	newNode, secrets, err := CreateNode(s.db, NodeSpec{
-		IP:     ip.String(),
-		Role:   req.Type,
-		SNI:    sni,
-		Domain: domain,
+		IP:              ip.String(),
+		Role:            req.Type,
+		SNI:             sni,
+		Domain:          domain,
+		Dest:            dest,
+		SelfStealDomain: selfStealDomain,
 	})
 	if errors.Is(err, ErrNodeExists) {
 		return jsonError(c, http.StatusConflict, "Нода с таким IP уже есть")
@@ -107,12 +120,13 @@ func (s *Server) createNode(c echo.Context) error {
 
 	// Приватный ключ и токен уходят только на саму ноду, в БД Мастера их нет
 	s.deploy(runner.DeployParams{
-		IP:           newNode.IP,
-		Role:         newNode.Type,
-		RootPassword: req.Password,
-		PrivateKey:   secrets.PrivateKey,
-		NodeToken:    secrets.Token,
-		MasterURL:    s.cfg.MasterURL,
+		IP:              newNode.IP,
+		Role:            newNode.Type,
+		RootPassword:    req.Password,
+		PrivateKey:      secrets.PrivateKey,
+		NodeToken:       secrets.Token,
+		MasterURL:       s.cfg.MasterURL,
+		SelfStealDomain: newNode.SelfStealDomain,
 	})
 
 	return c.JSON(http.StatusAccepted, map[string]string{
@@ -123,10 +137,12 @@ func (s *Server) createNode(c echo.Context) error {
 
 // NodeSpec — параметры новой ноды
 type NodeSpec struct {
-	IP     string
-	Role   string
-	SNI    string
-	Domain string
+	IP              string
+	Role            string
+	SNI             string
+	Domain          string
+	LocalBridge     bool
+	SelfStealDomain string
 	// Dest — куда Reality отправляет посторонние подключения (по умолчанию SNI:443)
 	Dest string
 	// Xver — версия PROXY protocol для Dest (0 — выключен)
@@ -158,18 +174,20 @@ func CreateNode(db *gorm.DB, spec NodeSpec) (models.Node, NodeSecrets, error) {
 	}
 
 	node := models.Node{
-		IP:          spec.IP,
-		Type:        spec.Role,
-		Domain:      spec.Domain,
-		SNI:         spec.SNI,
-		RealityDest: spec.Dest,
-		RealityXver: spec.Xver,
-		PubKey:      secrets.pubKey,
-		SID:         secrets.sid,
-		LinkUUID:    uuid.NewString(),
-		XHTTPPath:   newXHTTPPath(),
-		TokenHash:   hashToken(secrets.Token),
-		IsOnline:    false, // Онлайн нода станет после первой синхронизации агента
+		IP:              spec.IP,
+		Type:            spec.Role,
+		Domain:          spec.Domain,
+		SNI:             spec.SNI,
+		LocalBridge:     spec.LocalBridge,
+		SelfStealDomain: spec.SelfStealDomain,
+		RealityDest:     spec.Dest,
+		RealityXver:     spec.Xver,
+		PubKey:          secrets.pubKey,
+		SID:             secrets.sid,
+		LinkUUID:        uuid.NewString(),
+		XHTTPPath:       newXHTTPPath(),
+		TokenHash:       hashToken(secrets.Token),
+		IsOnline:        false, // Онлайн нода станет после первой синхронизации агента
 	}
 	if err := db.Create(&node).Error; err != nil {
 		return models.Node{}, NodeSecrets{}, err
@@ -200,8 +218,7 @@ func (s *Server) updateNode(c echo.Context) error {
 			return jsonError(c, http.StatusBadRequest, "Некорректный SNI")
 		}
 		if node.RealityDest != "" {
-			// Мост на сервере Мастера маскируется под собственный домен панели
-			return jsonError(c, http.StatusBadRequest, "У моста на сервере Мастера SNI — это домен панели, его не меняют")
+			return jsonError(c, http.StatusBadRequest, "SNI привязан к собственному сайту REALITY")
 		}
 		// Старая ошибка проверки SNI больше не актуальна — нода перепроверит новый
 		updates["sni"], updates["sni_error"] = sni, ""
@@ -236,7 +253,7 @@ func (s *Server) redeployNode(c echo.Context) error {
 	if err := s.db.First(&node, "ip = ?", c.Param("ip")).Error; err != nil {
 		return jsonError(c, http.StatusNotFound, "Нода не найдена")
 	}
-	if node.RealityDest != "" {
+	if node.IsLocalBridge() {
 		return jsonError(c, http.StatusBadRequest, "Мост на сервере Мастера переустанавливается через install.sh")
 	}
 	var req struct {
@@ -280,13 +297,14 @@ func (s *Server) redeployNode(c echo.Context) error {
 	}
 
 	s.deploy(runner.DeployParams{
-		IP:           node.IP,
-		Role:         node.Type,
-		RootPassword: req.Password,
-		KeyFile:      keyFile,
-		PrivateKey:   secrets.PrivateKey,
-		NodeToken:    secrets.Token,
-		MasterURL:    s.cfg.MasterURL,
+		IP:              node.IP,
+		Role:            node.Type,
+		RootPassword:    req.Password,
+		KeyFile:         keyFile,
+		PrivateKey:      secrets.PrivateKey,
+		NodeToken:       secrets.Token,
+		MasterURL:       s.cfg.MasterURL,
+		SelfStealDomain: node.SelfStealDomain,
 	})
 	return c.JSON(http.StatusAccepted, map[string]string{"message": "Переустановка запущена", "ip": node.IP})
 }
