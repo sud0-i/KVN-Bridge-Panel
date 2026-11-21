@@ -31,6 +31,9 @@
       {
           admin off
           auto_https disable_redirects
+          servers 127.0.0.1:9444 {
+              protocols h1 h2
+          }
       }
 
       http://{{ self_steal_domain }} {
@@ -46,6 +49,7 @@
               }
           }
           header Content-Type "text/html; charset=utf-8"
+          header Alt-Svc "clear"
           respond "<!doctype html><html lang='en'><meta charset='utf-8'><title>Welcome</title><h1>Welcome</h1></html>" 200
       }
   register: self_steal_config
