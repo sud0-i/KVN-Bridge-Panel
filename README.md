@@ -85,7 +85,7 @@ Set a password and confirm the IP address. The installer puts the panel and brid
 
 - **Cascade.** Enable “WARP fallback to exit nodes” on a bridge. Xray probes the primary and WARP routes. It uses a healthy fallback when the primary routes are down and blocks cascade traffic when both fail. The fallback uses VLESS + REALITY over TCP to the exit node.
 - **Deployment.** In the deploy or redeploy form, choose “WARP via …” and enter the node's SSH port. The panel needs SSH key access to that bridge, and the bridge SSH server must allow forwarding to the local WARP SOCKS proxy (`127.0.0.1:40000`). The newly installed agent needs HTTPS access to the panel.
-- Enable WARP installation in the remote bridge's deployment form. For a bridge on the panel server, use the WARP option in the regular installer or configure the local SOCKS proxy manually.
+- Enable WARP installation in the remote bridge's deployment form. For an existing bridge with the panel SSH key, click “Install WARP” on its card. Retry the exit deployment once the SOCKS check passes.
 
 ## Quick start
 

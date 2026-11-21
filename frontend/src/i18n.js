@@ -37,6 +37,8 @@ export const messages = {
       quota: '{name}: {pct}% лимита', quotaText: '{used} из {total} ГБ.'
     },
     nd: {
+      warpInstall: 'Установить WARP', warpInstalling: 'Установка…',
+      warpInstalled: 'SOCKS WARP проверен. Статус обновится при синхронизации моста.',
       warpTransit: 'Резерв до выходных нод через WARP',
       installWarpTransit: 'Установить WARP и использовать его как резерв до выходных нод',
       sshPort: 'Порт SSH', sshRoute: 'Маршрут SSH', sshDirect: 'Напрямую', sshViaWarp: 'WARP через {name}',
@@ -346,6 +348,8 @@ export const messages = {
       quota: '{name}: {pct}% of limit', quotaText: '{used} of {total} GB.'
     },
     nd: {
+      warpInstall: 'Install WARP', warpInstalling: 'Installing…',
+      warpInstalled: 'WARP SOCKS verified. The status updates on the next bridge sync.',
       warpTransit: 'WARP fallback to exit nodes',
       installWarpTransit: 'Install WARP and use it as a fallback to exit nodes',
       sshPort: 'SSH port', sshRoute: 'SSH route', sshDirect: 'Direct', sshViaWarp: 'WARP via {name}',

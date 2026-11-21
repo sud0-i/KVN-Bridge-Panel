@@ -98,6 +98,14 @@ func ProvisionSelfSteal(ctx context.Context, ip, domain, keyFile string, route S
 	}, "--tags", "self-steal")
 }
 
+// ProvisionWARP installs the proxy only. The existing node services keep running.
+func ProvisionWARP(ctx context.Context, ip, keyFile string, route SSHRoute) error {
+	return runPlaybook(ctx, ip, route, map[string]string{
+		"ansible_user":                 "root",
+		"ansible_ssh_private_key_file": keyFile,
+	}, "--tags", "install-warp")
+}
+
 func runPlaybook(ctx context.Context, ip string, route SSHRoute, v map[string]string, options ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()

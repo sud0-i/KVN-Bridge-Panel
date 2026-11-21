@@ -9,7 +9,7 @@ import { ref, computed, onBeforeUnmount } from 'vue'
 import { t } from '../i18n'
 import { nodes, loadingNodes, routing, agentSHA, agentPending, xrayPending, nodeName, ago, fmtDateTime, bridges, exits,
   openDeploy, openRedeploy, editSNI, editLabel, editCDN, deleteNode, links, linksRange, fetchLinks,
-  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes, isLocalBridge, enableSelfSteal, setWarpTransit } from '../store'
+  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes, isLocalBridge, enableSelfSteal, setWarpTransit, installBridgeWARP } from '../store'
 
 const emit = defineEmits(['go'])
 
@@ -53,6 +53,21 @@ const uptime = (sec) => {
 const actionsFor = ref(null)
 const actionList = (n) => ['restart-xray', ...(n.MieruVersion ? ['restart-mieru'] : []), 'restart-agent', 'reboot']
 const runAction = async (n, a) => { actionsFor.value = null; await nodeAction(n, a) }
+const warpInstall = ref({})
+async function repairWarp(node) {
+  warpInstall.value[node.IP] = { busy: true, error: '', done: false }
+  const state = warpInstall.value[node.IP]
+  try {
+    await installBridgeWARP(node)
+    state.done = true
+    await fetchNodes()
+  } catch (error) {
+    state.error = error.message
+  } finally {
+    state.busy = false
+  }
+}
+
 // Подбор SNI: пока идёт сканирование, обновляем ноды раз в 5 секунд
 const selfStealNode = ref(null)
 const selfStealDomain = ref('')
@@ -177,12 +192,19 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
           <div class="flex justify-between gap-4 py-2 border-t border-line">
             <dt class="text-mute">{{ t('nd.protocols') }}</dt><dd class="text-right">{{ protocols(n) }}</dd>
           </div>
-          <div v-if="n.Type === 'bridge'" class="flex justify-between items-center gap-4 py-2 border-t border-line">
-            <dt class="text-mute">{{ t('nd.warpTransit') }}</dt>
-            <dd class="flex items-center gap-2">
-              <span v-if="n.WarpTransit && !n.WarpOK" class="text-xs text-warn" :title="t('nd.sshWarpHint')">{{ t('warpOff') }}</span>
-              <input type="checkbox" :aria-label="t('nd.warpTransit')" :checked="n.WarpTransit" @change="setWarpTransit(n, $event.target.checked)">
-            </dd>
+          <div v-if="n.Type === 'bridge'" class="py-2 border-t border-line space-y-2">
+            <div class="flex justify-between items-center gap-4">
+              <dt class="text-mute">{{ t('nd.warpTransit') }}</dt>
+              <dd class="flex flex-wrap justify-end items-center gap-2">
+                <button v-if="n.IsOnline && !n.WarpOK && hasPanelKey(n)" type="button" class="btn h-8"
+                  :disabled="warpInstall[n.IP]?.busy" @click="repairWarp(n)">
+                  {{ t(warpInstall[n.IP]?.busy ? 'nd.warpInstalling' : 'nd.warpInstall') }}
+                </button>
+                <input type="checkbox" :aria-label="t('nd.warpTransit')" :checked="n.WarpTransit" @change="setWarpTransit(n, $event.target.checked)">
+              </dd>
+            </div>
+            <dd v-if="warpInstall[n.IP]?.error" class="text-xs text-err break-words" role="alert">{{ warpInstall[n.IP].error }}</dd>
+            <dd v-else-if="warpInstall[n.IP]?.done && !n.WarpOK" class="text-xs text-ok" role="status">{{ t('nd.warpInstalled') }}</dd>
           </div>
           <div v-if="n.Type === 'bridge' && exits.length" class="flex justify-between gap-4 py-2 border-t border-line">
             <dt class="text-mute">{{ t('nd.exits') }}</dt><dd class="text-right">{{ exits.map(nodeName).join(', ') }}</dd>

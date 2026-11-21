@@ -267,6 +267,11 @@ const patchNode = async (node, body) => {
   await fetchNodes()
 }
 
+export const installBridgeWARP = async (node) => {
+  const res = await apiCall(`api/nodes/${encodeURIComponent(node.IP)}/install-warp`, { method: 'POST' })
+  if (!res.ok) throw new Error(await readError(res))
+}
+
 export const setWarpTransit = (node, enabled) => patchNode(node, { warp_transit: enabled })
 
 export const editSNI = async (node) => {

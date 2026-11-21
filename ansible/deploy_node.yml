@@ -104,49 +104,42 @@
           [Install]
           WantedBy=multi-user.target
 
-    # Cloudflare WARP в режиме локального SOCKS-прокси (127.0.0.1:40000) — только на выходных нодах.
-    # Через него нода выпускает выбранный в панели трафик, не показывая свой IP.
-    # Если что-то не получилось, нода всё равно работает: агент увидит, что WARP нет,
-    # и отправит этот трафик напрямую.
-    - name: Установка Cloudflare WARP
+    # Ошибка WARP не должна срывать установку VPN.
+    - name: Установка Cloudflare WARP при деплое
       when: node_role == 'exit' or (warp_transit | bool)
       block:
-        - name: Зависимости WARP
-          apt:
-            name: [gnupg, lsb-release]
-            state: present
-
-        - name: Ключ репозитория Cloudflare
-          shell: curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
-          args:
-            creates: /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
-
-        - name: Репозиторий Cloudflare
-          shell: echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" > /etc/apt/sources.list.d/cloudflare-client.list
-          args:
-            creates: /etc/apt/sources.list.d/cloudflare-client.list
-
-        - name: Пакет cloudflare-warp
-          apt:
-            name: cloudflare-warp
-            state: present
-            update_cache: yes
-
-        - name: Регистрация WARP (один раз)
-          # Если Cloudflare недоступен, warp-cli ждёт долго — ограничиваем минутой
-          shell: timeout 60 warp-cli --accept-tos registration new
-          args:
-            creates: /var/lib/cloudflare-warp/reg.json
-
-        - name: Режим прокси на 127.0.0.1:40000 и подключение
-          shell: |
-            timeout 30 warp-cli --accept-tos mode proxy
-            timeout 30 warp-cli --accept-tos proxy port 40000
-            timeout 30 warp-cli --accept-tos connect
+        - import_tasks: warp.yml
       rescue:
         - name: WARP не установился
           debug:
-            msg: "WARP не установлен — нода будет выпускать весь трафик со своего IP"
+            msg: "WARP не установлен — агент покажет статус после запуска"
+
+    # never исключает эти задачи из обычного деплоя. Вызов из панели
+    # запускает только эту группу и возвращает ошибки установки.
+    - name: Установка WARP на действующем мосту
+      tags: [never, install-warp]
+      block:
+        - import_tasks: warp.yml
+
+        - name: Проверка доступа к HTTPS через SOCKS WARP
+          command:
+            argv:
+              - curl
+              - --fail
+              - --silent
+              - --show-error
+              - --noproxy
+              - ""
+              - --socks5-hostname
+              - 127.0.0.1:40000
+              - --max-time
+              - "10"
+              - https://www.cloudflare.com/cdn-cgi/trace
+          register: warp_trace
+          until: warp_trace.rc == 0 and ('warp=on' in warp_trace.stdout_lines or 'warp=plus' in warp_trace.stdout_lines)
+          retries: 8
+          delay: 3
+          changed_when: false
 
     - name: Настройка фаервола (API Xray слушает только localhost, его не открываем)
       ufw:

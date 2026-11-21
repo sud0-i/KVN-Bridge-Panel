@@ -44,6 +44,8 @@ type Server struct {
 	// deploy запускает деплой в фоне; вынесен в поле, чтобы в тестах не запускать настоящий Ansible
 	deploy             func(runner.DeployParams)
 	provisionSelfSteal func(context.Context, string, string, string, runner.SSHRoute) error
+	provisionWARP      func(context.Context, string, string, runner.SSHRoute) error
+	warpJobs           sync.Map
 	selfStealJobs      sync.Map
 	now                func() time.Time
 	// sshAddr — адрес SSH ноды; nil — IP:22 (в тестах — локальный сервер)
@@ -61,7 +63,7 @@ func New(cfg Config, db *gorm.DB) *Server {
 		keyPath = filepath.Join(filepath.Dir(envOr("DB_PATH", "data/db.sqlite")), "ssh", "id_ed25519")
 	}
 	return &Server{cfg: cfg, db: db, deploy: func(p runner.DeployParams) { go runner.DeployNode(p) }, now: time.Now,
-		agentBin: &agentBinary{path: bin}, sshKey: &masterKey{path: keyPath}, provisionSelfSteal: runner.ProvisionSelfSteal}
+		agentBin: &agentBinary{path: bin}, sshKey: &masterKey{path: keyPath}, provisionSelfSteal: runner.ProvisionSelfSteal, provisionWARP: runner.ProvisionWARP}
 }
 
 // Register вешает все роуты на Echo
@@ -95,6 +97,7 @@ func (s *Server) Register(e *echo.Echo) {
 	api.POST("/nodes", s.createNode, admin)
 	api.PATCH("/nodes/:ip", s.updateNode, admin)
 	api.POST("/nodes/:ip/self-steal", s.enableSelfSteal, admin)
+	api.POST("/nodes/:ip/install-warp", s.installBridgeWARP, admin)
 	api.POST("/nodes/:ip/redeploy", s.redeployNode, admin)
 	api.DELETE("/nodes/:ip", s.deleteNode, admin)
 

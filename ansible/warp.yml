@@ -1,0 +1,46 @@
+---
+- name: Зависимости WARP
+  apt:
+    name: [ca-certificates, curl, gnupg, lsb-release]
+    state: present
+
+- name: Ключ репозитория Cloudflare
+  shell: |
+    set -euo pipefail
+    key="$(mktemp)"
+    trap 'rm -f "$key"' EXIT
+    curl -fsSL --max-time 30 https://pkg.cloudflareclient.com/pubkey.gpg | gpg --batch --yes --dearmor -o "$key"
+    install -m 0644 "$key" /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+  args:
+    executable: /bin/bash
+    creates: /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+
+- name: Репозиторий Cloudflare
+  shell: echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" > /etc/apt/sources.list.d/cloudflare-client.list
+  args:
+    creates: /etc/apt/sources.list.d/cloudflare-client.list
+
+- name: Пакет cloudflare-warp
+  apt:
+    name: cloudflare-warp
+    state: present
+    update_cache: yes
+    update_cache_retries: 2
+
+- name: Запуск службы WARP
+  systemd:
+    name: warp-svc
+    state: started
+    enabled: yes
+
+- name: Регистрация WARP
+  shell: timeout 60 warp-cli --accept-tos registration new || test -f /var/lib/cloudflare-warp/reg.json
+  args:
+    creates: /var/lib/cloudflare-warp/reg.json
+
+- name: Настройка и запуск локального SOCKS WARP
+  shell: |
+    set -e
+    timeout 30 warp-cli --accept-tos mode proxy
+    timeout 30 warp-cli --accept-tos proxy port 40000
+    timeout 30 warp-cli --accept-tos connect
