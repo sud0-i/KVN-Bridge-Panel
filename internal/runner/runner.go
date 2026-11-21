@@ -27,6 +27,8 @@ type DeployParams struct {
 	NodeToken       string
 	MasterURL       string
 	SelfStealDomain string
+	WarpTransit     bool
+	SSH             SSHRoute
 }
 
 // Пути можно переопределить переменными окружения (удобно для локального запуска)
@@ -55,8 +57,7 @@ func DeployNode(p DeployParams) {
 	}
 
 	log.Printf("✅ [ANSIBLE] Нода %s успешно настроена!", p.IP)
-	// Окончательно «онлайн» нода станет, когда её агент впервые сходит на /api/sync
-	db.DB.Model(&models.Node{}).Where("ip = ?", p.IP).Update("is_online", true)
+	// Онлайн отмечает только агент при первой синхронизации.
 }
 
 func run(p DeployParams) error {
@@ -76,18 +77,20 @@ func run(p DeployParams) error {
 		"agent_src":         agentSrc,
 		"self_steal_domain": p.SelfStealDomain,
 		"node_ip":           p.IP,
+		"node_ssh_port":     p.SSH.PortString(),
+		"warp_transit":      fmt.Sprint(p.WarpTransit),
 	}
 	if p.RootPassword != "" {
 		v["ansible_password"] = p.RootPassword
 	} else {
 		v["ansible_ssh_private_key_file"] = p.KeyFile
 	}
-	return runPlaybook(context.Background(), p.IP, v)
+	return runPlaybook(context.Background(), p.IP, p.SSH, v)
 }
 
 // ProvisionSelfSteal runs only the web site tasks, without restarting Xray or the agent.
-func ProvisionSelfSteal(ctx context.Context, ip, domain, keyFile string) error {
-	return runPlaybook(ctx, ip, map[string]string{
+func ProvisionSelfSteal(ctx context.Context, ip, domain, keyFile string, route SSHRoute) error {
+	return runPlaybook(ctx, ip, route, map[string]string{
 		"ansible_user":                 "root",
 		"ansible_ssh_private_key_file": keyFile,
 		"self_steal_domain":            domain,
@@ -95,7 +98,15 @@ func ProvisionSelfSteal(ctx context.Context, ip, domain, keyFile string) error {
 	}, "--tags", "self-steal")
 }
 
-func runPlaybook(ctx context.Context, ip string, v map[string]string, options ...string) error {
+func runPlaybook(ctx context.Context, ip string, route SSHRoute, v map[string]string, options ...string) error {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
+	defer cancel()
+	host, port, closeRelay, err := route.ansibleTarget(ctx, ip)
+	if err != nil {
+		return err
+	}
+	defer closeRelay()
+	v["ansible_host"], v["ansible_port"] = host, port
 	vars, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -112,9 +123,6 @@ func runPlaybook(ctx context.Context, ip string, v map[string]string, options ..
 	if err := f.Close(); err != nil {
 		return err
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
-	defer cancel()
 
 	// Запятая после IP нужна Ansible для работы без inventory-файла
 	args := []string{"-i", ip + ",", playbookPath(), "-e", "@" + f.Name()}

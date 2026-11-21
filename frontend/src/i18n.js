@@ -37,6 +37,10 @@ export const messages = {
       quota: '{name}: {pct}% лимита', quotaText: '{used} из {total} ГБ.'
     },
     nd: {
+      warpTransit: 'Резерв до выходных нод через WARP',
+      installWarpTransit: 'Установить WARP и использовать его как резерв до выходных нод',
+      sshPort: 'Порт SSH', sshRoute: 'Маршрут SSH', sshDirect: 'Напрямую', sshViaWarp: 'WARP через {name}',
+      sshWarpHint: 'Для WARP нужен доступный по SSH мост с ключом панели и рабочим локальным SOCKS WARP.',
       selfSteal: 'Свой сайт для REALITY', selfStealDomain: 'Домен сайта',
       selfStealHint: 'Необязательно. Укажите домен с DNS-записью на IP ноды без CDN. TCP 80 нужен для выпуска и продления сертификата.',
       selfStealSubscriptions: 'После смены SNI обновите подписки в VPN-приложениях и заново импортируйте отдельные профили.',
@@ -342,6 +346,10 @@ export const messages = {
       quota: '{name}: {pct}% of limit', quotaText: '{used} of {total} GB.'
     },
     nd: {
+      warpTransit: 'WARP fallback to exit nodes',
+      installWarpTransit: 'Install WARP and use it as a fallback to exit nodes',
+      sshPort: 'SSH port', sshRoute: 'SSH route', sshDirect: 'Direct', sshViaWarp: 'WARP via {name}',
+      sshWarpHint: 'WARP needs an SSH-reachable bridge with the panel key and a working local WARP SOCKS proxy.',
       selfSteal: 'Own site for REALITY', selfStealDomain: 'Site domain',
       selfStealHint: 'Optional. Point the domain to the node IP without a CDN. TCP 80 is needed to issue and renew the certificate.',
       selfStealSubscriptions: 'After changing SNI, refresh subscriptions in VPN apps and re-import standalone profiles.',

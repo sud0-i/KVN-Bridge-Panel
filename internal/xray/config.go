@@ -203,8 +203,28 @@ func Build(s protocol.SyncResponse, privateKey string) ([]byte, error) {
 		}
 
 		if len(s.Exits) > 0 {
+			fallback, selectors := "block", []string{"exit-"}
+			if s.WarpTransit {
+				fallback = "route-warp-exits"
+				selectors = append(selectors, "warp-exit-")
+				outbounds = append(outbounds, warpSOCKS(), obj{
+					"tag": fallback, "protocol": "loopback", "settings": obj{"inboundTag": fallback},
+				})
+				balancers = append(balancers, obj{
+					"tag": "warp-exits", "selector": []string{"warp-exit-"},
+					"strategy": obj{"type": "random"}, "fallbackTag": "block",
+				})
+				// Loopback повторно отправляет поток в роутер после отказа всех прямых маршрутов.
+				rules = append([]obj{{"type": "field", "inboundTag": []string{fallback}, "balancerTag": "warp-exits"}}, rules...)
+			}
 			for i, e := range s.Exits {
 				outbounds = append(outbounds, exitOutbound(fmt.Sprintf("exit-%d", i), e, s.Fingerprint))
+				if s.WarpTransit {
+					e.CDN, e.XHTTPPath = "", ""
+					viaWarp := exitOutbound(fmt.Sprintf("warp-exit-%d", i), e, s.Fingerprint)
+					viaWarp["streamSettings"].(obj)["sockopt"] = obj{"dialerProxy": "warp"}
+					outbounds = append(outbounds, viaWarp)
+				}
 			}
 			// Случайная живая выходная нода. Живость проверяет observatory; Xray учитывает
 			// её только при заданном fallbackTag. Если мертвы все — блокируем, а не пускаем
@@ -218,10 +238,10 @@ func Build(s protocol.SyncResponse, privateKey string) ([]byte, error) {
 				"tag":         "exits",
 				"selector":    []string{"exit-"},
 				"strategy":    obj{"type": "random"},
-				"fallbackTag": "block",
+				"fallbackTag": fallback,
 			})
 			observatory = obj{
-				"subjectSelector": []string{"exit-"},
+				"subjectSelector": selectors,
 				"pingConfig": obj{
 					"destination": ProbeURL,
 					"interval":    "10s", // в среднем одна проверка на ноду раз в 10 секунд
@@ -279,11 +299,7 @@ func addWarp(outbounds, rules []obj, warp []string) ([]obj, []obj) {
 	if len(warp) == 0 {
 		return outbounds, rules
 	}
-	outbounds = append(outbounds, obj{
-		"tag":      "warp",
-		"protocol": "socks",
-		"settings": obj{"servers": []obj{{"address": "127.0.0.1", "port": protocol.WarpProxyPort}}},
-	})
+	outbounds = append(outbounds, warpSOCKS())
 	domains, ips := splitRules(warp)
 	if len(domains) > 0 {
 		rules = append(rules, obj{"type": "field", "domain": domains, "outboundTag": "warp"})
@@ -307,6 +323,12 @@ func splitRules(list []string) (domains, ips []string) {
 		}
 	}
 	return domains, ips
+}
+
+func warpSOCKS() obj {
+	return obj{"tag": "warp", "protocol": "socks", "settings": obj{
+		"servers": []obj{{"address": "127.0.0.1", "port": protocol.WarpProxyPort}},
+	}}
 }
 
 func exitOutbound(tag string, e protocol.Exit, fingerprint string) obj {

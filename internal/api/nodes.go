@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/google/uuid"
@@ -67,6 +68,9 @@ func (s *Server) createNode(c echo.Context) error {
 		Password        string `json:"password"` // Пароль не храним в БД, используем только для Ansible!
 		SNI             string `json:"sni"`      // необязательно
 		SelfStealDomain string `json:"self_steal_domain"`
+		SSHPort         int    `json:"ssh_port"`
+		SSHViaBridge    string `json:"ssh_via_bridge"`
+		WarpTransit     bool   `json:"warp_transit"`
 		Domain          string `json:"domain"` // необязательно, для ссылок подписки
 	}
 	if err := c.Bind(&req); err != nil {
@@ -103,6 +107,12 @@ func (s *Server) createNode(c echo.Context) error {
 		return jsonError(c, http.StatusBadRequest, "Некорректный домен")
 	}
 
+	via := strings.TrimSpace(req.SSHViaBridge)
+	sshRoute, err := s.nodeSSHRoute(ip.String(), req.SSHPort, via)
+	if err != nil {
+		return jsonError(c, http.StatusBadRequest, err.Error())
+	}
+	warpTransit := req.WarpTransit && req.Type == protocol.RoleBridge
 	newNode, secrets, err := CreateNode(s.db, NodeSpec{
 		IP:              ip.String(),
 		Role:            req.Type,
@@ -110,6 +120,9 @@ func (s *Server) createNode(c echo.Context) error {
 		Domain:          domain,
 		Dest:            dest,
 		SelfStealDomain: selfStealDomain,
+		SSHPort:         req.SSHPort,
+		SSHViaBridge:    via,
+		WarpTransit:     warpTransit,
 	})
 	if errors.Is(err, ErrNodeExists) {
 		return jsonError(c, http.StatusConflict, "Нода с таким IP уже есть")
@@ -127,6 +140,8 @@ func (s *Server) createNode(c echo.Context) error {
 		NodeToken:       secrets.Token,
 		MasterURL:       s.cfg.MasterURL,
 		SelfStealDomain: newNode.SelfStealDomain,
+		SSH:             sshRoute,
+		WarpTransit:     warpTransit,
 	})
 
 	return c.JSON(http.StatusAccepted, map[string]string{
@@ -143,6 +158,9 @@ type NodeSpec struct {
 	Domain          string
 	LocalBridge     bool
 	SelfStealDomain string
+	SSHPort         int
+	SSHViaBridge    string
+	WarpTransit     bool
 	// Dest — куда Reality отправляет посторонние подключения (по умолчанию SNI:443)
 	Dest string
 	// Xver — версия PROXY protocol для Dest (0 — выключен)
@@ -180,6 +198,9 @@ func CreateNode(db *gorm.DB, spec NodeSpec) (models.Node, NodeSecrets, error) {
 		SNI:             spec.SNI,
 		LocalBridge:     spec.LocalBridge,
 		SelfStealDomain: spec.SelfStealDomain,
+		SSHPort:         spec.SSHPort,
+		SSHViaBridge:    spec.SSHViaBridge,
+		WarpTransit:     spec.WarpTransit,
 		RealityDest:     spec.Dest,
 		RealityXver:     spec.Xver,
 		PubKey:          secrets.pubKey,
@@ -204,9 +225,10 @@ func (s *Server) updateNode(c echo.Context) error {
 	}
 	// Меняется только то, что передано: {"sni": …}, {"label": …}, {"cdn": …}
 	var req struct {
-		SNI   *string `json:"sni"`
-		Label *string `json:"label"`
-		CDN   *string `json:"cdn"`
+		SNI         *string `json:"sni"`
+		Label       *string `json:"label"`
+		CDN         *string `json:"cdn"`
+		WarpTransit *bool   `json:"warp_transit"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return jsonError(c, http.StatusBadRequest, "Неверный формат")
@@ -237,6 +259,12 @@ func (s *Server) updateNode(c echo.Context) error {
 		}
 		updates["cdn_domain"] = cdn
 	}
+	if req.WarpTransit != nil {
+		if node.Type != protocol.RoleBridge {
+			return jsonError(c, http.StatusBadRequest, "Резерв WARP доступен для моста")
+		}
+		updates["warp_transit"] = *req.WarpTransit
+	}
 	if len(updates) == 0 {
 		return jsonError(c, http.StatusBadRequest, "Нечего менять")
 	}
@@ -257,10 +285,26 @@ func (s *Server) redeployNode(c echo.Context) error {
 		return jsonError(c, http.StatusBadRequest, "Мост на сервере Мастера переустанавливается через install.sh")
 	}
 	var req struct {
-		Password string `json:"password"`
+		Password     string  `json:"password"`
+		SSHPort      *int    `json:"ssh_port"`
+		SSHViaBridge *string `json:"ssh_via_bridge"`
+		WarpTransit  *bool   `json:"warp_transit"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return jsonError(c, http.StatusBadRequest, "Неверный формат")
+	}
+	if req.SSHPort != nil {
+		node.SSHPort = *req.SSHPort
+	}
+	if req.SSHViaBridge != nil {
+		node.SSHViaBridge = strings.TrimSpace(*req.SSHViaBridge)
+	}
+	if req.WarpTransit != nil && node.Type == protocol.RoleBridge {
+		node.WarpTransit = *req.WarpTransit
+	}
+	sshRoute, err := s.nodeSSHRoute(node.IP, node.SSHPort, node.SSHViaBridge)
+	if err != nil {
+		return jsonError(c, http.StatusBadRequest, err.Error())
 	}
 	// Без пароля — по ключу мастера, если он уже стоит на ноде
 	keyFile := ""
@@ -279,13 +323,17 @@ func (s *Server) redeployNode(c echo.Context) error {
 		return jsonError(c, http.StatusInternalServerError, "Ошибка генерации ключей")
 	}
 	err = s.db.Model(&node).Updates(map[string]any{
-		"pub_key":      secrets.pubKey,
-		"s_id":         secrets.sid,
-		"token_hash":   hashToken(secrets.Token),
-		"is_online":    false,
-		"config_error": "",
-		"sni_error":    "",
-		"warp_error":   "",
+		"pub_key":        secrets.pubKey,
+		"s_id":           secrets.sid,
+		"token_hash":     hashToken(secrets.Token),
+		"is_online":      false,
+		"last_seen":      time.Time{},
+		"ssh_port":       node.SSHPort,
+		"ssh_via_bridge": node.SSHViaBridge,
+		"warp_transit":   node.WarpTransit,
+		"config_error":   "",
+		"sni_error":      "",
+		"warp_error":     "",
 	}).Error
 	if err == nil && req.Password != "" {
 		// С паролем обычно переустанавливают после переустановки ОС — у сервера новый
@@ -305,6 +353,8 @@ func (s *Server) redeployNode(c echo.Context) error {
 		NodeToken:       secrets.Token,
 		MasterURL:       s.cfg.MasterURL,
 		SelfStealDomain: node.SelfStealDomain,
+		SSH:             sshRoute,
+		WarpTransit:     node.WarpTransit,
 	})
 	return c.JSON(http.StatusAccepted, map[string]string{"message": "Переустановка запущена", "ip": node.IP})
 }

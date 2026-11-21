@@ -9,7 +9,7 @@ import { ref, computed, onBeforeUnmount } from 'vue'
 import { t } from '../i18n'
 import { nodes, loadingNodes, routing, agentSHA, agentPending, xrayPending, nodeName, ago, fmtDateTime, bridges, exits,
   openDeploy, openRedeploy, editSNI, editLabel, editCDN, deleteNode, links, linksRange, fetchLinks,
-  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes, isLocalBridge, enableSelfSteal } from '../store'
+  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes, isLocalBridge, enableSelfSteal, setWarpTransit } from '../store'
 
 const emit = defineEmits(['go'])
 
@@ -177,6 +177,13 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
           <div class="flex justify-between gap-4 py-2 border-t border-line">
             <dt class="text-mute">{{ t('nd.protocols') }}</dt><dd class="text-right">{{ protocols(n) }}</dd>
           </div>
+          <div v-if="n.Type === 'bridge'" class="flex justify-between items-center gap-4 py-2 border-t border-line">
+            <dt class="text-mute">{{ t('nd.warpTransit') }}</dt>
+            <dd class="flex items-center gap-2">
+              <span v-if="n.WarpTransit && !n.WarpOK" class="text-xs text-warn" :title="t('nd.sshWarpHint')">{{ t('warpOff') }}</span>
+              <input type="checkbox" :aria-label="t('nd.warpTransit')" :checked="n.WarpTransit" @change="setWarpTransit(n, $event.target.checked)">
+            </dd>
+          </div>
           <div v-if="n.Type === 'bridge' && exits.length" class="flex justify-between gap-4 py-2 border-t border-line">
             <dt class="text-mute">{{ t('nd.exits') }}</dt><dd class="text-right">{{ exits.map(nodeName).join(', ') }}</dd>
           </div>
@@ -195,7 +202,7 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
             </dd>
           </div>
           <div class="flex justify-between items-center gap-4 py-2 border-t border-line">
-            <dt class="text-mute">{{ t('tm.ssh') }}</dt>
+            <dt class="text-mute">{{ t('tm.ssh') }} · {{ n.SSHPort || 22 }}<span v-if="n.SSHViaBridge"> · {{ t('nd.sshViaWarp', { name: n.SSHViaBridge }) }}</span></dt>
             <dd class="text-right flex items-center gap-2 justify-end">
               <span v-if="n.SSHState?.startsWith('error')" class="text-err text-[13px]" :title="n.SSHState">{{ n.SSHState.slice(7) }}</span>
               <span v-else-if="!hasPanelKey(n)" class="text-dim text-[13px]" :title="t('tm.sshNoneHint')">{{ t('tm.sshNone') }}</span>

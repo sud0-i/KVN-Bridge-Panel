@@ -72,6 +72,9 @@ type Node struct {
 	RealityXver     int
 	LocalBridge     bool
 	SelfStealDomain string
+	WarpTransit     bool
+	SSHPort         int
+	SSHViaBridge    string
 	PubKey          string
 	SID             string
 	LinkUUID        string // мост авторизуется на экзитах под этим UUID

@@ -224,18 +224,27 @@ export const fetchNodes = async () => {
 
 // Окно установки ноды: null — закрыто; redeployIP — «переустановить эту ноду»
 export const nodeModal = ref(null)
-export const openDeploy = () => { nodeModal.value = { redeployIP: '', ip: '', type: 'bridge', sni: '', selfStealDomain: '', password: '', message: '' } }
+export const openDeploy = () => {
+  nodeModal.value = { redeployIP: '', ip: '', type: 'bridge', sni: '', selfStealDomain: '', password: '', message: '',
+    sshPort: 22, sshViaBridge: '', warpTransit: false }
+}
 export const openRedeploy = (ip) => {
   const n = nodes.value.find(x => x.IP === ip)
-  nodeModal.value = { redeployIP: ip, ip: '', type: 'bridge', sni: '', password: '', message: '', byKey: !!n && hasPanelKey(n) }
+  nodeModal.value = { redeployIP: ip, ip: '', type: n?.Type, password: '', message: '', byKey: !!n && hasPanelKey(n),
+    sshPort: n?.SSHPort || 22, sshViaBridge: n?.SSHViaBridge || '', warpTransit: !!n?.WarpTransit }
 }
+
+export const deployBridges = computed(() => nodes.value.filter(n =>
+  n.Type === 'bridge' && hasPanelKey(n) && !n.SSHViaBridge && n.IP !== (nodeModal.value?.redeployIP || nodeModal.value?.ip)
+))
 
 export const deployNode = async () => {
   const m = nodeModal.value
   if ((!m.ip && !m.redeployIP) || (!m.password && !m.byKey)) return
+  const ssh = { ssh_port: Number(m.sshPort || 22), ssh_via_bridge: m.sshViaBridge, warp_transit: m.type === 'bridge' && m.warpTransit }
   const res = m.redeployIP
-    ? await apiCall(`api/nodes/${encodeURIComponent(m.redeployIP)}/redeploy`, { method: 'POST', body: JSON.stringify({ password: m.password }) })
-    : await apiCall('api/nodes', { method: 'POST', body: JSON.stringify({ ip: m.ip, type: m.type, password: m.password, sni: m.sni, self_steal_domain: m.selfStealDomain }) })
+    ? await apiCall(`api/nodes/${encodeURIComponent(m.redeployIP)}/redeploy`, { method: 'POST', body: JSON.stringify({ password: m.password, ...ssh }) })
+    : await apiCall('api/nodes', { method: 'POST', body: JSON.stringify({ ip: m.ip, type: m.type, password: m.password, sni: m.sni, self_steal_domain: m.selfStealDomain, ...ssh }) })
   const data = await res.json()
   if (!res.ok) {
     alert(data.error || t('deployError'))
@@ -257,6 +266,8 @@ const patchNode = async (node, body) => {
   }
   await fetchNodes()
 }
+
+export const setWarpTransit = (node, enabled) => patchNode(node, { warp_transit: enabled })
 
 export const editSNI = async (node) => {
   const sni = prompt(t('sniPrompt'), node.SNI)

@@ -13,7 +13,7 @@ import Settings from './views/Settings.vue'
 import {
   token, login, NeedCode, loadAll, logout, users, nodes, agentSHA, attention, saveMessage, saveError,
   userModal, openUserModal, saveUser, userAction, importUsers, fmtGB, used,
-  shareUser, shareQR, subLink, copySubLink, nodeModal, openDeploy, deployNode, downloadBackup
+  shareUser, shareQR, subLink, copySubLink, nodeModal, openDeploy, deployNode, downloadBackup, deployBridges, nodeName
 } from './store'
 
 // --- ВХОД ---
@@ -333,6 +333,25 @@ const doDeploy = async () => {
             <p class="hint mt-1.5">{{ t('nd.selfStealHint') }}</p>
           </div>
         </template>
+        <label v-if="nodeModal.type === 'bridge'" class="flex items-center gap-2 text-sm">
+          <input v-model="nodeModal.warpTransit" type="checkbox">
+          {{ t('nd.installWarpTransit') }}
+        </label>
+        <div>
+          <label class="label" for="n-ssh-port">{{ t('nd.sshPort') }}</label>
+          <input id="n-ssh-port" v-model.number="nodeModal.sshPort" type="number" min="1" max="65535" class="input">
+        </div>
+        <div>
+          <label class="label" for="n-ssh-route">{{ t('nd.sshRoute') }}</label>
+          <select id="n-ssh-route" v-model="nodeModal.sshViaBridge" class="input">
+            <option value="">{{ t('nd.sshDirect') }}</option>
+            <option v-if="nodeModal.sshViaBridge && !deployBridges.some(n => n.IP === nodeModal.sshViaBridge)" :value="nodeModal.sshViaBridge" disabled>
+              {{ t('nd.sshViaWarp', { name: nodeModal.sshViaBridge }) }}
+            </option>
+            <option v-for="bridge in deployBridges" :key="bridge.IP" :value="bridge.IP">{{ t('nd.sshViaWarp', { name: nodeName(bridge) }) }}</option>
+          </select>
+          <p class="hint mt-1.5">{{ t('nd.sshWarpHint') }}</p>
+        </div>
         <div>
           <label class="label" for="n-pass">{{ t('rootPassword') }}</label>
           <input id="n-pass" v-model="nodeModal.password" type="password" class="input" autocomplete="off">
@@ -341,7 +360,7 @@ const doDeploy = async () => {
       </template>
       <template v-if="!nodeModal.message" #footer>
         <button type="button" class="btn" @click="closeNode">{{ t('cancel') }}</button>
-        <button type="button" class="btn btn-primary" :disabled="deploying || (!nodeModal.ip && !nodeModal.redeployIP) || (!nodeModal.password && !nodeModal.byKey)" @click="doDeploy">{{ t('startDeploy') }}</button>
+        <button type="button" class="btn btn-primary" :disabled="deploying || (nodeModal.sshPort !== '' && (!Number.isInteger(nodeModal.sshPort) || nodeModal.sshPort < 1 || nodeModal.sshPort > 65535)) || (!nodeModal.ip && !nodeModal.redeployIP) || (!nodeModal.password && !nodeModal.byKey)" @click="doDeploy">{{ t('startDeploy') }}</button>
       </template>
     </Sheet>
   </div>

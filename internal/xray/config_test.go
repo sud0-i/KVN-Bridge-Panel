@@ -464,3 +464,38 @@ func TestMieruInbound(t *testing.T) {
 	}
 	t.Fatal("mieru-in должен идти через выходные ноды")
 }
+
+func TestWarpTransitUsesObservedBackupAndBlocksOnFailure(t *testing.T) {
+	cfg := build(t, protocol.SyncResponse{
+		Role: protocol.RoleBridge, WarpTransit: true,
+		Reality: protocol.Reality{SNI: "example.com"},
+		Exits:   []protocol.Exit{{Address: "203.0.113.20", UUID: "link", PublicKey: "key", SNI: "example.com", CDN: "cdn.example.com", XHTTPPath: "/x"}},
+	})
+	out := map[string]map[string]any{}
+	for _, item := range cfg["outbounds"].([]any) {
+		o := item.(map[string]any)
+		out[o["tag"].(string)] = o
+	}
+	primary := out["exit-0"]["streamSettings"].(map[string]any)
+	backup := out["warp-exit-0"]["streamSettings"].(map[string]any)
+	if primary["network"] != "xhttp" || backup["network"] != "tcp" || backup["security"] != "reality" ||
+		backup["sockopt"].(map[string]any)["dialerProxy"] != "warp" || out["warp"]["protocol"] != "socks" {
+		t.Fatalf("unexpected primary or WARP transport: %v / %v", primary, backup)
+	}
+	routing := cfg["routing"].(map[string]any)
+	rules := routing["rules"].([]any)
+	balancers := map[string]map[string]any{}
+	for _, item := range routing["balancers"].([]any) {
+		b := item.(map[string]any)
+		balancers[b["tag"].(string)] = b
+	}
+	next := balancers["exits"]["fallbackTag"].(string)
+	if next != "route-warp-exits" || out[next]["protocol"] != "loopback" ||
+		rules[0].(map[string]any)["balancerTag"] != "warp-exits" || balancers["warp-exits"]["fallbackTag"] != "block" {
+		t.Fatalf("WARP must be the observed backup and fail closed: %v / %v", balancers, rules)
+	}
+	selectors := cfg["burstObservatory"].(map[string]any)["subjectSelector"].([]any)
+	if len(selectors) != 2 || selectors[0] != "exit-" || selectors[1] != "warp-exit-" {
+		t.Fatalf("both routes must be probed, got %v", selectors)
+	}
+}

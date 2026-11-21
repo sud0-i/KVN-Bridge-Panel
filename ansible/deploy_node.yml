@@ -12,6 +12,8 @@
     node_role: ""
     agent_src: ""
     self_steal_domain: ""
+    node_ssh_port: "22"
+    warp_transit: "false"
 
   tasks:
     - name: Проверка переменных
@@ -107,7 +109,7 @@
     # Если что-то не получилось, нода всё равно работает: агент увидит, что WARP нет,
     # и отправит этот трафик напрямую.
     - name: Установка Cloudflare WARP
-      when: node_role == 'exit'
+      when: node_role == 'exit' or (warp_transit | bool)
       block:
         - name: Зависимости WARP
           apt:
@@ -151,7 +153,7 @@
         rule: allow
         port: "{{ item }}"
         proto: tcp
-      loop: ['22', '443', '8443']  # 8443 — вход для CDN (включается в панели)
+      loop: ['{{ node_ssh_port }}', '443', '8443']  # 8443 — вход для CDN (включается в панели)
 
     - name: UDP 443 для Hysteria2 (открыт заранее — включается галочкой в панели)
       ufw:

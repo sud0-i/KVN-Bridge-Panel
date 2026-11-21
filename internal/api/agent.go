@@ -124,6 +124,7 @@ func (s *Server) sync(c echo.Context) error {
 			return jsonError(c, http.StatusInternalServerError, "DB error")
 		}
 		resp.Direct = routing.bridgeDirect()
+		resp.WarpTransit = node.WarpTransit
 		// Одиночный режим: выходных нод нет, мост сам выпускает трафик в интернет —
 		// и правила «через WARP» выполняет тоже он
 		if len(exits) == 0 {

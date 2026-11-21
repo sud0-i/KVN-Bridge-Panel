@@ -238,7 +238,7 @@ func (a *agent) sync() {
 		a.sniErr = ""
 	}
 	// WARP нужен выходным нодам и мосту без выходных нод, если для него есть правила
-	if data.Role == protocol.RoleExit || len(data.Warp) > 0 {
+	if data.Role == protocol.RoleExit || data.WarpTransit || len(data.Warp) > 0 {
 		a.warpErr = a.warp.diagnose(warp)
 		warp = a.warpErr == ""
 	} else {

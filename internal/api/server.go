@@ -43,7 +43,7 @@ type Server struct {
 	db       *gorm.DB
 	// deploy запускает деплой в фоне; вынесен в поле, чтобы в тестах не запускать настоящий Ansible
 	deploy             func(runner.DeployParams)
-	provisionSelfSteal func(context.Context, string, string, string) error
+	provisionSelfSteal func(context.Context, string, string, string, runner.SSHRoute) error
 	selfStealJobs      sync.Map
 	now                func() time.Time
 	// sshAddr — адрес SSH ноды; nil — IP:22 (в тестах — локальный сервер)

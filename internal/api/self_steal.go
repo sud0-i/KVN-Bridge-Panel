@@ -49,8 +49,13 @@ func (s *Server) enableSelfSteal(c echo.Context) error {
 		return jsonError(c, http.StatusInternalServerError, "Ключ панели: "+err.Error())
 	}
 
+	route, err := s.nodeSSHRoute(node.IP, node.SSHPort, node.SSHViaBridge)
+	if err != nil {
+		return jsonError(c, http.StatusBadRequest, err.Error())
+	}
+
 	// Завершаем операцию даже если администратор закрыл окно во время выпуска сертификата.
-	if err := s.provisionSelfSteal(context.WithoutCancel(c.Request().Context()), ip, domain, s.sshKey.path); err != nil {
+	if err := s.provisionSelfSteal(context.WithoutCancel(c.Request().Context()), ip, domain, s.sshKey.path, route); err != nil {
 		return jsonError(c, http.StatusBadGateway, "Не удалось настроить сайт: "+err.Error())
 	}
 	res := s.db.Model(&node).Where("token_hash = ? AND sni = ?", node.TokenHash, node.SNI).

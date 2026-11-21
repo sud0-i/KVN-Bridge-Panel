@@ -62,6 +62,8 @@ type SyncResponse struct {
 	Direct []string `json:"direct,omitempty"`
 	// Warp — что выходная нода выпускает через Cloudflare WARP, а не со своего IP
 	Warp []string `json:"warp,omitempty"`
+	// WarpTransit резервирует связь с выходными нодами через SOCKS на самом мосту.
+	WarpTransit bool `json:"warp_transit,omitempty"`
 	// XHTTPPath — путь запасного транспорта XHTTP на том же порту 443 (пусто — XHTTP выключен)
 	XHTTPPath string `json:"xhttp_path,omitempty"`
 	// Fingerprint — отпечаток TLS (uTLS), с которым мост подключается к выходным нодам.

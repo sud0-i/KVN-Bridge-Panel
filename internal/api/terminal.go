@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/models"
+	"github.com/sud0-i/KVN-Bridge-Panel/internal/runner"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -45,11 +46,11 @@ type terminals struct {
 }
 
 // sshAddr — адрес SSH ноды (в тестах подменяется на локальный сервер)
-func (s *Server) sshAddrOf(ip string) string {
+func (s *Server) sshAddrOf(ip, port string) string {
 	if s.sshAddr != nil {
 		return s.sshAddr(ip)
 	}
-	return net.JoinHostPort(ip, "22")
+	return net.JoinHostPort(ip, port)
 }
 
 var errHostKeyChanged = errors.New("ключ SSH-сервера ноды изменился с прошлого входа. Если сервер переустанавливали — переустановите ноду из панели (это сбросит запомненный ключ). Если нет — кто-то может подменять соединение")
@@ -57,6 +58,14 @@ var errHostKeyChanged = errors.New("ключ SSH-сервера ноды изм�
 // sshDial заходит на ноду root'ом с ключом мастера. Ключ сервера запоминается при
 // первом входе и дальше сверяется (как known_hosts у OpenSSH).
 func (s *Server) sshDial(node models.Node) (*ssh.Client, error) {
+	route, err := s.nodeSSHRoute(node.IP, node.SSHPort, node.SSHViaBridge)
+	if err != nil {
+		return nil, err
+	}
+	return s.connectSSH(node, route)
+}
+
+func (s *Server) connectSSH(node models.Node, route runner.SSHRoute) (*ssh.Client, error) {
 	signer, _, err := s.sshKey.load()
 	if err != nil {
 		return nil, fmt.Errorf("ключ мастера: %w", err)
@@ -76,20 +85,29 @@ func (s *Server) sshDial(node models.Node) (*ssh.Client, error) {
 			}
 			return nil
 		},
-		Timeout: 10 * time.Second,
 	}
-	client, err := ssh.Dial("tcp", s.sshAddrOf(node.IP), cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	addr := s.sshAddrOf(node.IP, route.PortString())
+	conn, err := route.Dial(ctx, addr)
 	if err != nil {
+		return nil, fmt.Errorf("нет соединения с %s по SSH: %w", addr, err)
+	}
+	stop := context.AfterFunc(ctx, func() { conn.Close() })
+	defer stop()
+	cc, channels, requests, err := ssh.NewClientConn(conn, addr, cfg)
+	if err != nil {
+		conn.Close()
 		if errors.Is(err, errHostKeyChanged) {
 			return nil, errHostKeyChanged
 		}
 		var nerr net.Error
 		if errors.As(err, &nerr) {
-			return nil, fmt.Errorf("нет соединения с %s по SSH (порт 22): %v", node.IP, err)
+			return nil, fmt.Errorf("нет соединения с %s по SSH: %v", addr, err)
 		}
 		return nil, fmt.Errorf("вход по ключу мастера не удался: %v. Агент ставит ключ в /root/.ssh/authorized_keys — обновите агент или подождите минуту", err)
 	}
-	return client, nil
+	return ssh.NewClient(cc, channels, requests), nil
 }
 
 // hasPanelKey — агент сообщил, что ключ мастера стоит

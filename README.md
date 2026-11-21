@@ -81,6 +81,12 @@ Set a password and confirm the IP address. The installer puts the panel and brid
 
 **Own site for REALITY.** Provide a hostname in the remote node install form or in the SNI row of an online node with the panel SSH key. Point DNS directly to the node IP and keep TCP 80 accessible for Caddy. Caddy serves a static page on the node. For an existing node, its current SNI stays active if certificate issuance fails. Once the change succeeds, refresh subscriptions and re-import any standalone profiles.
 
+### WARP on a bridge
+
+- **Cascade.** Enable “WARP fallback to exit nodes” on a bridge. Xray probes the primary and WARP routes. It uses a healthy fallback when the primary routes are down and blocks cascade traffic when both fail. The fallback uses VLESS + REALITY over TCP to the exit node.
+- **Deployment.** In the deploy or redeploy form, choose “WARP via …” and enter the node's SSH port. The panel needs SSH key access to that bridge, and the bridge SSH server must allow forwarding to the local WARP SOCKS proxy (`127.0.0.1:40000`). The newly installed agent needs HTTPS access to the panel.
+- Enable WARP installation in the remote bridge's deployment form. For a bridge on the panel server, use the WARP option in the regular installer or configure the local SOCKS proxy manually.
+
 ## Quick start
 
 1. Point your domain at the server and run the installer:
