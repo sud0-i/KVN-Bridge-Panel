@@ -256,6 +256,9 @@ func (a *agent) sync() {
 	// Если выпустить не удалось — поднимаем ноду без Hysteria, VLESS важнее.
 	if data.Hysteria != nil {
 		certFile, keyFile, certPEM, err := ensureHy2Cert(filepath.Dir(a.configPath), data.Reality.SNI, time.Now())
+		if err == nil {
+			err = prepareXrayTLSKey(keyFile)
+		}
 		if err != nil {
 			log.Printf("⚠️ Hysteria2 выключен: %v", err)
 			data.Hysteria = nil
@@ -268,6 +271,9 @@ func (a *agent) sync() {
 	// Вход для CDN: свой сертификат на CDN-домен и открытый порт. Не вышло — без CDN.
 	if data.CDN != nil {
 		certFile, keyFile, err := ensureCDNCert(filepath.Dir(a.configPath), data.CDN.Domain, time.Now())
+		if err == nil {
+			err = prepareXrayTLSKey(keyFile)
+		}
 		if err != nil {
 			log.Printf("⚠️ Вход для CDN выключен: %v", err)
 			data.CDN = nil
@@ -310,9 +316,14 @@ func (a *agent) sync() {
 	}
 }
 
-// applyConfig проверяет новый конфиг и перезапускает Xray, только если что-то поменялось
+// applyConfig применяет новый конфиг и восстанавливает упавшую службу Xray.
 func (a *agent) applyConfig(cfg []byte) (bool, error) {
 	if old, err := os.ReadFile(a.configPath); err == nil && bytes.Equal(old, cfg) {
+		if exec.Command("systemctl", "is-failed", "--quiet", "xray").Run() == nil {
+			if out, err := exec.Command("systemctl", "start", "xray").CombinedOutput(); err != nil {
+				return false, fmt.Errorf("запуск xray: %v\n%s", err, out)
+			}
+		}
 		return false, nil
 	}
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -8,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"log"
 	"math/big"
 	"os"
@@ -15,6 +17,8 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/protocol"
@@ -99,8 +103,6 @@ func ensureCert(dir, certName, keyName, serverName string, now time.Time) (certF
 	if err := writeFileAtomic(keyFile, keyPEM, 0o600); err != nil {
 		return "", "", nil, err
 	}
-	// Xray после Xray-install работает от nobody — ключ должен быть ему доступен
-	chownToXrayUser(keyFile)
 	if err := writeFileAtomic(certFile, certPEM, 0o644); err != nil {
 		return "", "", nil, err
 	}
@@ -130,16 +132,55 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 	return os.Rename(tmp, path)
 }
 
-// chownToXrayUser отдаёт файл пользователю, от которого работает Xray (nobody у Xray-install).
-// Если такого пользователя нет — оставляем как есть: значит, Xray работает от root.
-func chownToXrayUser(path string) {
-	u, err := user.Lookup(envOr("XRAY_USER", "nobody"))
+// prepareXrayTLSKey also repairs keys left by a previous installation.
+func prepareXrayTLSKey(path string) error {
+	uid, err := xrayServiceUID()
 	if err != nil {
-		return
+		return err
 	}
-	uid, _ := strconv.Atoi(u.Uid)
-	gid, _ := strconv.Atoi(u.Gid)
-	_ = os.Chown(path, uid, gid)
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("ключ Xray %s должен быть обычным файлом", path)
+	}
+	if info.Mode().Perm() != 0o600 {
+		if err := os.Chmod(path, 0o600); err != nil {
+			return fmt.Errorf("права ключа Xray: %w", err)
+		}
+	}
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok && int(stat.Uid) == uid {
+		return nil
+	}
+	if err := os.Chown(path, uid, -1); err != nil {
+		return fmt.Errorf("владелец ключа Xray (UID %d): %w", uid, err)
+	}
+	return nil
+}
+
+func xrayServiceUID() (int, error) {
+	name := strings.TrimSpace(os.Getenv("XRAY_USER"))
+	if name == "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, "systemctl", "show", "-p", "User", "--value", "xray.service").Output()
+		if err != nil {
+			return 0, fmt.Errorf("пользователь xray.service: %w", err)
+		}
+		name = strings.TrimSpace(string(out))
+		if name == "" { // Без User= системная служба запускается от root.
+			return 0, nil
+		}
+	}
+	if uid, err := strconv.Atoi(name); err == nil && uid >= 0 {
+		return uid, nil
+	}
+	u, err := user.Lookup(name)
+	if err != nil {
+		return 0, fmt.Errorf("пользователь Xray %q: %w", name, err)
+	}
+	return strconv.Atoi(u.Uid)
 }
 
 // openCDNPort открывает порт входа для CDN в ufw (если он включён). Ноды, развёрнутые
