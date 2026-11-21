@@ -2,42 +2,62 @@
 
 **English** · [Русский](README.ru.md)
 
-[![CI](https://github.com/sud0-i/KVN-Bridge-Panel/actions/workflows/ci.yml/badge.svg)](https://github.com/sud0-i/KVN-Bridge-Panel/actions/workflows/ci.yml)
+[![CI](https://github.com/sud0-i/KVN-Bridge-Panel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sud0-i/KVN-Bridge-Panel/actions/workflows/ci.yml)
+[![Docker image](https://github.com/sud0-i/KVN-Bridge-Panel/actions/workflows/docker.yml/badge.svg?branch=main)](https://github.com/sud0-i/KVN-Bridge-Panel/actions/workflows/docker.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-A panel for running your own VPN on your own servers — for yourself, family and friends. It installs
-with one command; everything else happens in the browser: servers are added by IP and root password,
-users get a subscription link and connect with the apps they already know.
+**Self-hosted VPN control panel for a single server or a bridge-to-exit cascade.** Deploy Xray nodes over SSH, configure routing and failover, and manage user subscriptions from the browser.
 
-The core idea is a **cascade**: users connect to a "bridge" (usually in their own country), and
-traffic leaves for the internet through an "exit node" abroad. The connection to the bridge looks
-like ordinary domestic traffic, and there can be several exit nodes. A single server without a
-cascade works too.
+[Quick start](#quick-start) · [Install without a domain](#one-vps-without-a-domain) · [Supported clients](#apps) · [Backup and restore](#backup-and-restore)
 
-```
-device ──▶ bridge ──▶ exit node ──▶ internet
-                          └──▶ Cloudflare WARP (by rules)
+```text
+Single server: device → bridge → internet
+Cascade:       device → bridge → exit node(s) → internet
 ```
 
-## How it differs from 3x-ui and Remnawave
+## Quick start
 
-It is not a competitor to those panels but a simple alternative for one job: **getting a bridge →
-exit cascade up quickly** for yourself and the people close to you. In practice it takes two
-buttons: the installer on the panel server and "Add a node" for every next server. Everything
-else (Xray, the agent, firewall, certificates, protocols, routing between bridge and exit) the
-panel does itself.
+1. Point your domain at the server and run the installer:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/sud0-i/KVN-Bridge-Panel/main/install.sh | sudo bash
+   ```
+   Choose the domain option in the installer, then enter the domain and admin password.
+   You can also make the panel server a bridge. The installer prints the panel address.
+2. Open the panel and turn on two-factor sign-in: Settings → Two-factor sign-in.
+3. **Nodes** → Add a node: IP, role (bridge or exit node) and root password. The node shows up in
+   2–3 minutes.
+4. **Users** → Add. The 🔗 button shows the subscription link and a QR code — send them to the
+   person. The link opens a page with apps for their device.
 
-| | KVN-Bridge-Panel | [3x-ui](https://github.com/MHSanaei/3x-ui) | [Remnawave](https://github.com/remnawave/panel) |
-|---|---|---|---|
-| Made for | a cascade for yourself, family and friends | one server with fine-grained manual Xray setup | a service with many nodes and users |
-| Bridge → exit cascade | out of the box, with exit health checks and link monitoring | assembled by hand | assembled by hand in config profiles |
-| New server | IP and root password — everything is installed for you | the panel is installed on every server | a node container is installed, then the node is added in the panel |
-| Configuration | opinionated defaults, few switches | full control over Xray inbounds | flexible profiles, templates, user groups, API |
-| Panel server | one container, SQLite | one process, SQLite | several services and a separate database |
+Manually: copy `.env.example` to `.env`, fill it in and run `docker compose up -d`.
 
-If you want full control over the Xray config on a single server, use 3x-ui. If you have hundreds
-of users, sell access, need an API or several admins, use Remnawave. If you want a working cascade
-for your own people without assembling configs by hand, this panel is for that.
+### Setups
+
+- **One server.** Answer "yes" to the bridge question — the server is both the panel and the VPN,
+  and traffic leaves from its IP. Add an exit node later and the bridge switches to the cascade
+  by itself.
+- **Panel and bridge on one server, exit nodes elsewhere.** Xray takes port 443 and hands browsers
+  and node agents over to the panel, so from outside the server looks like an ordinary website with
+  a real certificate.
+- **Panel on its own server.** The most robust option: the panel server holds every user, while
+  bridge IPs are known to all clients.
+
+## Requirements
+
+- **A server for the panel** running Debian or Ubuntu (x86-64) with at least 1 GB RAM. For a domain-based install, point an A record to the server and allow TCP 80 and 443. The IP-only mode requires a public IPv4 address and TCP 9443 in addition.
+- **Servers for nodes** (optional) — also Debian or Ubuntu x86-64 with root SSH access. Rent the
+  bridge in your own country and the exit node abroad.
+- The panel and a bridge can share a server, and a single server is enough to get started.
+
+## One VPS without a domain
+
+If you choose “By IP, without a domain” in the installer, allow inbound TCP 80, 443 and 9443 on your fresh Debian or Ubuntu server with a public IPv4 address. To select this mode explicitly:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sud0-i/KVN-Bridge-Panel/main/install.sh | sudo bash -s -- --no-domain
+```
+
+Set a password and confirm the IP address. The installer puts the panel and bridge on the same server. The panel and subscriptions use `https://<IP>:9443`; REALITY uses TCP 443. Let's Encrypt needs TCP 80 to issue and renew the IP certificate. Create a user in the panel and add the subscription to a VPN app. You can add an exit node later.
 
 ## Features
 
@@ -59,60 +79,18 @@ for your own people without assembling configs by hand, this panel is for that.
   login on servers.
 - **Security:** the panel lives at a secret path, two-factor sign-in, a separate token and key for
   every node, daily backups.
+- **Backup and restore:** daily SQLite backups, download and restore from the browser.
 - English and Russian interface, works well on a phone.
 
-## Requirements
+## Own site for REALITY
 
-- **A server for the panel** running Debian or Ubuntu (x86-64), 1 GB of RAM or more, and a domain
-  (or subdomain) pointing to it with an A record. Ports 80 and 443.
-- **Servers for nodes** (optional) — also Debian or Ubuntu x86-64 with root SSH access. Rent the
-  bridge in your own country and the exit node abroad.
-- The panel and a bridge can share a server, and a single server is enough to get started.
+Provide a hostname in the remote node install form or in the SNI row of an online node with the panel SSH key. Point DNS directly to the node IP and keep TCP 80 accessible for Caddy. Caddy serves a static page on the node. For an existing node, its current SNI stays active if certificate issuance fails. Once the change succeeds, refresh subscriptions and re-import any standalone profiles.
 
-## One VPS without a domain
-
-If you choose “By IP, without a domain” in the installer, allow inbound TCP 80, 443 and 9443 on your fresh Debian or Ubuntu server with a public IPv4 address. To select this mode explicitly:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/sud0-i/KVN-Bridge-Panel/main/install.sh | sudo bash -s -- --no-domain
-```
-
-Set a password and confirm the IP address. The installer puts the panel and bridge on the same server. The panel and subscriptions use `https://<IP>:9443`; REALITY uses TCP 443. Let's Encrypt needs TCP 80 to issue and renew the IP certificate. Create a user in the panel and add the subscription to a VPN app. You can add an exit node later.
-
-**Own site for REALITY.** Provide a hostname in the remote node install form or in the SNI row of an online node with the panel SSH key. Point DNS directly to the node IP and keep TCP 80 accessible for Caddy. Caddy serves a static page on the node. For an existing node, its current SNI stays active if certificate issuance fails. Once the change succeeds, refresh subscriptions and re-import any standalone profiles.
-
-### WARP on a bridge
+## WARP on a bridge
 
 - **Cascade.** Enable “WARP fallback to exit nodes” on a bridge. Xray probes the primary and WARP routes. It uses a healthy fallback when the primary routes are down and blocks cascade traffic when both fail. The fallback uses VLESS + REALITY over TCP to the exit node.
 - **Deployment.** In the deploy or redeploy form, choose “WARP via …” and enter the node's SSH port. The panel needs SSH key access to that bridge, and the bridge SSH server must allow forwarding to the local WARP SOCKS proxy (`127.0.0.1:40000`). The newly installed agent needs HTTPS access to the panel.
 - Enable WARP installation in the remote bridge's deployment form. For an existing bridge with the panel SSH key, click “Install WARP” on its card. Retry the exit deployment once the SOCKS check passes.
-
-## Quick start
-
-1. Point your domain at the server and run the installer:
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/sud0-i/KVN-Bridge-Panel/main/install.sh | sudo bash
-   ```
-   It installs Docker, asks for the domain, the admin password and whether this server should also
-   be a bridge, and prints the panel address at the end.
-2. Open the panel and turn on two-factor sign-in: Settings → Two-factor sign-in.
-3. **Nodes** → Add a node: IP, role (bridge or exit node) and root password. The node shows up in
-   2–3 minutes.
-4. **Users** → Add. The 🔗 button shows the subscription link and a QR code — send them to the
-   person. The link opens a page with apps for their device.
-
-Manually: copy `.env.example` to `.env`, fill it in and run `docker compose up -d`.
-
-### Setups
-
-- **One server.** Answer "yes" to the bridge question — the server is both the panel and the VPN,
-  and traffic leaves from its IP. Add an exit node later and the bridge switches to the cascade
-  by itself.
-- **Panel and bridge on one server, exit nodes elsewhere.** Xray takes port 443 and hands browsers
-  and node agents over to the panel, so from outside the server looks like an ordinary website with
-  a real certificate.
-- **Panel on its own server.** The most robust option: the panel server holds every user, while
-  bridge IPs are known to all clients.
 
 ## Apps
 
