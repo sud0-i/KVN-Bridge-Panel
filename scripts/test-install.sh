@@ -64,28 +64,29 @@ run() {
 }
 
 # 1. Только мастер, пароль сгенерирован (Enter)
-run 'panel.example.com\n\nn\n' "мастер, автопароль"
+run '\n\npanel.example.com\n\nn\n' "мастер, автопароль"
 [ "$(stat -c %a "$T/opt/.env")" = 600 ] || { echo "FAIL: права .env"; exit 1; }
+grep -q '^MASTER_URL=https://panel.example.com$' "$T/opt/.env"
 grep -Eq '^ADMIN_PASSWORD=[A-Za-z0-9]{16}$' "$T/opt/.env" || { echo "FAIL: пароль"; exit 1; }
 grep -Eq '^ADMIN_PATH=[A-Za-z0-9]{24}$' "$T/opt/.env" || { echo "FAIL: ADMIN_PATH"; exit 1; }
 grep -Eq '^JWT_SECRET=[A-Za-z0-9]{48}$' "$T/opt/.env" || { echo "FAIL: JWT_SECRET"; exit 1; }
 
 # 2. Мастер + мост, свой пароль, без WARP
-run 'panel.example.com\nmypass\ny\nn\n' "мастер + мост"
+run '1\npanel.example.com\nmypass\ny\nn\n' "мастер + мост"
 [ ! -f "$T/warp.log" ] || { echo "FAIL: WARP ставился, хотя отказались"; exit 1; }
 grep -q '^NODE_TOKEN=tok$' "$T/etc/vpn-agent/.env" || { echo "FAIL: .env агента"; exit 1; }
 [ -s "$T/etc/sysctl.d/99-kvn-network.conf" ] || { echo "FAIL: сетевые настройки"; exit 1; }
 grep -q '127.0.0.1:8443:8443' "$T/opt/docker-compose.yml" || { echo "FAIL: compose моста"; exit 1; }
 
 # 3. Одиночный сервер с WARP (Enter = да)
-run 'panel.example.com\nmypass\ny\n\n' "мастер + мост + WARP"
+run '1\npanel.example.com\nmypass\ny\n\n' "мастер + мост + WARP"
 grep -q "registration new" "$T/warp.log" && grep -q "proxy port 40000" "$T/warp.log" \
     || { cat "$T/warp.log"; echo "FAIL: WARP не настроен"; exit 1; }
 grep -q "WARP работает" "$T/out.log" || { echo "FAIL: нет сообщения про WARP"; exit 1; }
 
 # 4. WARP не поставился — установка всё равно завершается, с предупреждением
 printf '#!/bin/bash\nexit 1\n' > "$T/bin/warp-cli"
-run 'panel.example.com\nmypass\ny\ny\n' "WARP с ошибкой"
+run '1\npanel.example.com\nmypass\ny\ny\n' "WARP с ошибкой"
 grep -q "WARP не поставился" "$T/out.log" || { cat "$T/out.log"; echo "FAIL: нет предупреждения"; exit 1; }
 ! grep -q "Установка прервана" "$T/out.log" || { cat "$T/out.log"; echo "FAIL: сбой WARP не должен выглядеть как обрыв установки"; exit 1; }
 
@@ -97,8 +98,8 @@ grep -q 'kvn-bridge-panel:beta' "$T/opt/docker-compose.yml"
 grep -q 'profile shortlived' "$T/opt/Caddyfile"
 grep -Eq 'https://203\.0\.113\.7:9443/[A-Za-z0-9]{24}/' "$T/out.log"
 
-# То же через пустой ответ на вопрос о домене.
-run '\nmypass\n203.0.113.7\n' "без домена, выбор в диалоге"
+# Режим без домена в диалоге требует явного выбора 2.
+run '9\n2\nmypass\n203.0.113.7\n' "без домена, выбор в диалоге"
 grep -q '^MASTER_URL=https://203.0.113.7:9443$' "$T/opt/.env"
 
 # 5. Как в жизни: curl … | bash. Скрипт приходит через stdin (ответы — отдельно, как с терминала),
@@ -114,7 +115,7 @@ STUB
 printf '#!/bin/bash\ncat >/dev/null\n' > "$T/bin/apt-get"
 chmod +x "$T/bin/docker" "$T/bin/apt-get"
 rm -rf "$T/opt" "$T/etc/vpn-agent"
-printf 'panel.example.com\nmypass\ny\nn\n' > "$T/answers"
+printf '1\npanel.example.com\nmypass\ny\nn\n' > "$T/answers"
 PATH="$T/bin:$PATH" bash < "$T/install-pipe.sh" 3< "$T/answers" > "$T/out.log" 2>&1 \
     || { cat "$T/out.log"; echo "FAIL: curl | bash"; exit 1; }
 grep -q "Установка полностью завершена" "$T/out.log" \
@@ -122,7 +123,7 @@ grep -q "Установка полностью завершена" "$T/out.log" 
 
 # 5. Упавшая команда должна называться в выводе, а не завершать скрипт молча
 printf '#!/bin/bash\n[ "$1" = restart ] && exit 1\nexit 0\n' > "$T/bin/systemctl"
-printf 'panel.example.com\nmypass\ny\nn\n' | PATH="$T/bin:$PATH" bash "$T/install.sh" > "$T/out.log" 2>&1 \
+printf '1\npanel.example.com\nmypass\ny\nn\n' | PATH="$T/bin:$PATH" bash "$T/install.sh" > "$T/out.log" 2>&1 \
     && { echo "FAIL: ошибка systemctl не остановила установку"; exit 1; }
 grep -q "Установка прервана: строка [0-9]*, команда: systemctl restart" "$T/out.log" \
     || { cat "$T/out.log"; echo "FAIL: нет сообщения об ошибке"; exit 1; }

@@ -69,7 +69,7 @@
 
 ## Один VPS без домена (beta)
 
-На новом Debian или Ubuntu с публичным IPv4 откройте входящие TCP 80, 443 и 9443 в фаерволе хостинга. Запустите:
+Если в установщике выбран вариант «По IP, без домена», на новом Debian или Ubuntu с публичным IPv4 откройте входящие TCP 80, 443 и 9443 в фаерволе хостинга. Для явного запуска этого режима:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sud0-i/KVN-Bridge-Panel/beta/install.sh | sudo bash -s -- --beta --no-domain

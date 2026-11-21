@@ -71,7 +71,7 @@ for your own people without assembling configs by hand, this panel is for that.
 
 ## One VPS without a domain (beta)
 
-On a fresh Debian or Ubuntu server with a public IPv4 address, allow inbound TCP 80, 443 and 9443 in your hosting firewall. Run:
+If you choose “By IP, without a domain” in the installer, allow inbound TCP 80, 443 and 9443 on your fresh Debian or Ubuntu server with a public IPv4 address. To select this mode explicitly:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sud0-i/KVN-Bridge-Panel/beta/install.sh | sudo bash -s -- --beta --no-domain

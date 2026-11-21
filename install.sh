@@ -78,27 +78,30 @@ echo -e "${BLUE}=========================================${NC}"
 # 1. Проверка прав Root
 [ "$EUID" -eq 0 ] || fail "Скрипт необходимо запускать от имени root (sudo)."
 
-if [ "$SINGLE_IP" = 1 ] && [ -e "$INSTALL_DIR/.env" ]; then
-    fail "Режим без домена рассчитан на новую установку. Настройки уже существуют в $INSTALL_DIR/.env."
-fi
-
-# 2. Установка Docker, если его нет
-if ! command -v docker &> /dev/null; then
-    echo -e "🐳 Docker не найден. Начинаем автоматическую установку..."
-    curl -fsSL https://get.docker.com | sh
-    echo -e "${GREEN}✅ Docker успешно установлен!${NC}"
-else
-    echo -e "🐳 Docker уже установлен. Пропускаем..."
-fi
-
-# 3. Диалог с пользователем (читаем с терминала: скрипт может прийти через curl | bash)
+# 2. Диалог с пользователем (читаем с терминала: скрипт может прийти через curl | bash)
 echo ""
 if [ "$SINGLE_IP" = 0 ]; then
-    read -rp "🌐 Домен панели (Enter — один VPS без домена): " DOMAIN </dev/tty
-    if [ -z "$DOMAIN" ]; then
-        SINGLE_IP=1
-        [ ! -e "$INSTALL_DIR/.env" ] || fail "В $INSTALL_DIR уже есть настройки панели."
-    fi
+    echo "Как открывать панель?"
+    echo "  1. По своему домену (рекомендуется)"
+    echo "  2. По IP, без домена (панель и VPN на одном VPS)"
+    while true; do
+        read -rp "Выберите режим [1/2, Enter = 1]: " install_mode </dev/tty
+        case "$install_mode" in
+            1|"") break ;;
+            2) SINGLE_IP=1; break ;;
+            *) echo "Введите 1 или 2." ;;
+        esac
+    done
+fi
+
+if [ "$SINGLE_IP" = 1 ]; then
+    [ ! -e "$INSTALL_DIR/.env" ] || fail "Режим без домена рассчитан на новую установку. Настройки уже существуют в $INSTALL_DIR/.env."
+else
+    while true; do
+        read -rp "🌐 Домен панели (например, panel.example.com): " DOMAIN </dev/tty
+        [ -z "$DOMAIN" ] || break
+        echo "Введите домен панели."
+    done
 fi
 
 read -rp "🔑 Придумайте пароль администратора (Enter = автогенерация): " ADMIN_PASS </dev/tty
@@ -149,6 +152,15 @@ fi
 
 if [ "$SINGLE_IP" = 0 ]; then
     MASTER_URL="https://$DOMAIN"
+fi
+
+# 3. Установка Docker, если его нет
+if ! command -v docker &> /dev/null; then
+    echo -e "🐳 Docker не найден. Начинаем автоматическую установку..."
+    curl -fsSL https://get.docker.com | sh
+    echo -e "${GREEN}✅ Docker успешно установлен!${NC}"
+else
+    echo -e "🐳 Docker уже установлен. Пропускаем..."
 fi
 
 # 4. Генерация ключей
