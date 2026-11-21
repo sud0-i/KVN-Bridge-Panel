@@ -37,7 +37,7 @@
       }
 
       http://{{ self_steal_domain }} {
-          respond 404
+          redir https://{{ self_steal_domain }}{uri} 308
       }
 
       https://{{ self_steal_domain }}:9444 {
