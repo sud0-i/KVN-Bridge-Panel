@@ -88,6 +88,8 @@ Provide a hostname in the remote node install form or in the SNI row of an onlin
 
 The panel and nodes with their own domain ship with the same default page. To serve your own files, put an `index.html` and its assets in `/opt/kvn-panel/data/site/` on the panel or `/var/www/kvn-site/custom/` on a remote node.
 
+Use **Settings → Public page** to edit the title, introduction and theme, preview changes or restore the previous version. This sets the panel page and the default for new nodes. For an individual node with its own domain, use **Edit site** in its SNI row.
+
 After adding, changing or removing a CDN domain, use **Refresh site** in the node's SNI row. With Cloudflare SSL/TLS set to **Full**, `https://cdn.example.com/` serves the same page on port 443. The CDN origin must use port 443 for web requests. VPN clients still use port 8443 for CDN XHTTP.
 
 For a panel and bridge installed together before this change, copy the `http://{$DOMAIN}` redirect block from [Caddyfile.combined](Caddyfile.combined) into the deployed Caddyfile and reload Caddy. The panel image update keeps your deployed Caddyfile.
@@ -208,6 +210,8 @@ Old links of the form `https://<old-domain>/sub/<token>` keep working:
 </details>
 
 ## Monitoring and notifications
+
+**Diagnostics** on a node card shows deployment and service errors and checks TCP and HTTPS reachability from the panel server. Reading the system journal requires the panel SSH key on the node. The report can be copied.
 
 - **Servers.** Each node card shows CPU, memory, disk, network, connection count and uptime, plus
   day and week charts. Two metrics tell whose problem it is when everything slows down: **steal**

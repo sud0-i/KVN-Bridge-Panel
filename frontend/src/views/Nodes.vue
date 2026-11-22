@@ -5,6 +5,8 @@ import LinkChart from '../ui/LinkChart.vue'
 import MetricChart from '../ui/MetricChart.vue'
 import Sheet from '../ui/Sheet.vue'
 import Terminal from '../ui/Terminal.vue'
+import NodeDiagnostics from '../ui/NodeDiagnostics.vue'
+import PublicSite from '../ui/PublicSite.vue'
 import { ref, computed, onBeforeUnmount } from 'vue'
 import { t } from '../i18n'
 import { nodes, loadingNodes, routing, agentSHA, agentPending, xrayPending, nodeName, ago, fmtDateTime, bridges, exits,
@@ -51,6 +53,8 @@ const uptime = (sec) => {
 
 // Действия: перезапуск служб и перезагрузка
 const actionsFor = ref(null)
+const diagnosticsFor = ref(null)
+const publicSiteFor = ref(null)
 const actionList = (n) => ['restart-xray', ...(n.MieruVersion ? ['restart-mieru'] : []), 'restart-agent', 'reboot']
 const runAction = async (n, a) => { actionsFor.value = null; await nodeAction(n, a) }
 const warpInstall = ref({})
@@ -180,7 +184,8 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
             <dt class="text-mute">{{ t('nd.sni') }}</dt>
             <dd class="text-right break-all">{{ n.RealityDest ? t('nd.ownSite', { d: n.SelfStealDomain || n.SNI }) : (n.SNI || '—') }}
               <button v-if="!n.RealityDest" type="button" class="ml-2 text-acc hover:text-acc-hover" @click="openSNI(n)">{{ t('sn.pick') }}</button>
-              <button v-if="!isLocalBridge(n) && n.IsOnline && hasPanelKey(n)" type="button" class="ml-2 text-acc hover:text-acc-hover" @click="openSelfSteal(n)">{{ t(n.SelfStealDomain ? 'nd.selfStealRefresh' : 'nd.selfSteal') }}</button></dd>
+              <button v-if="!isLocalBridge(n) && n.IsOnline && hasPanelKey(n)" type="button" class="ml-2 text-acc hover:text-acc-hover" @click="openSelfSteal(n)">{{ t(n.SelfStealDomain ? 'nd.selfStealRefresh' : 'nd.selfSteal') }}</button>
+              <button v-if="!isLocalBridge(n) && n.SelfStealDomain && hasPanelKey(n)" type="button" class="ml-2 text-acc hover:text-acc-hover" @click="publicSiteFor = n.IP">{{ t('site.edit') }}</button></dd>
           </div>
           <div class="flex justify-between items-center gap-4 py-2 border-t border-line">
             <dt class="text-mute">CDN</dt>
@@ -243,6 +248,7 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
           <span class="text-xs text-dim flex-1 min-w-0">{{ isLocalBridge(n) ? t('nd.onMaster') + ' · ' : '' }}{{ t('nd.synced', { ago: ago(n.LastSeen) }) }}
             <template v-if="n.PendingAction"> · <span class="text-warn">{{ t('act.pending', { a: t('act.name.' + n.PendingAction) }) }}</span></template>
             <template v-else-if="n.ActionResult"> · <span :class="n.ActionResult.includes(': ok') ? 'text-ok' : n.ActionResult.includes('ошибка') || n.ActionResult.includes('отменено') ? 'text-err' : ''">{{ n.ActionResult }}</span></template></span>
+          <button type="button" class="icon-btn" :aria-label="t('diag.title')" :title="t('diag.title')" @click="diagnosticsFor = n"><Icon name="search" :size="16" /></button>
           <button v-if="hasPanelKey(n)" type="button" class="icon-btn" :aria-label="t('tm.open')" :title="t('tm.open')" @click="terminalFor = n"><Icon name="terminal" :size="16" /></button>
           <button v-if="n.IsOnline" type="button" class="icon-btn" :aria-label="t('act.title')" :title="t('act.title')" @click="actionsFor = n"><Icon name="power" :size="16" /></button>
           <button type="button" class="icon-btn" :aria-label="t('labelHint')" :title="t('labelHint')" @click="editLabel(n)"><Icon name="tag" :size="16" /></button>
@@ -304,6 +310,8 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
     </section>
   </div>
   <Terminal v-if="terminalFor" :node="terminalFor" @close="terminalFor = null" @go="(v) => emit('go', v)" />
+  <NodeDiagnostics v-if="diagnosticsFor" :node="diagnosticsFor" @close="diagnosticsFor = null" />
+  <PublicSite v-if="publicSiteFor" :node="publicSiteFor" @close="publicSiteFor = null" />
   <Sheet v-if="selfStealNode" :title="t(selfStealNode.SelfStealDomain ? 'nd.selfStealRefresh' : 'nd.selfSteal')" @close="closeSelfSteal">
     <label for="self-steal-domain" class="label">{{ t('nd.selfStealDomain') }}</label>
     <input id="self-steal-domain" v-model.trim="selfStealDomain" type="text" placeholder="site.example.com" autocapitalize="off" class="input" :disabled="selfStealBusy" :readonly="!!selfStealNode.SelfStealDomain">

@@ -2,6 +2,21 @@ import { ref } from 'vue'
 
 export const messages = {
   ru: {
+    site: {
+      title: 'Публичная страница', edit: 'Редактировать сайт', heading: 'Заголовок', intro: 'Вступление',
+      theme: 'Оформление', paper: 'Светлое', slate: 'Тёмное', preview: 'Предпросмотр',
+      publish: 'Опубликовать', published: 'Страница опубликована', rollback: 'Вернуть предыдущую версию',
+      panelHint: 'Страница на главном адресе панели и шаблон для новых нод. Если загружен свой HTML-файл, он имеет приоритет.',
+      nodeHint: 'Страница для прямого домена и CDN этой ноды. Если загружен свой HTML-файл, он имеет приоритет.'
+    },
+    diag: {
+      title: 'Диагностика', hint: 'Замер с сервера панели. TCP показывает доступность порта',
+      tcp: 'TCP 443', direct: 'HTTPS напрямую', cdn: 'HTTPS через CDN', cdn_tcp: 'TCP 8443 через CDN',
+      config_error: 'Деплой и конфигурация', update_error: 'Обновление', warp_error: 'WARP', sni_error: 'SNI',
+      journal: 'Ошибки служб за последние сутки', empty: 'В последних записях ошибок нет',
+      noKey: 'Для чтения журнала нужен SSH-ключ панели на ноде.',
+      refresh: 'Проверить', copy: 'Скопировать отчёт', copied: 'Скопировано'
+    },
     nav: { overview: 'Обзор', users: 'Пользователи', nodes: 'Ноды', protocols: 'Протоколы', routing: 'Маршрутизация', page: 'Страница подписки', settings: 'Настройки', sections: 'Разделы', addUser: 'Пользователь', addNode: 'Нода', master: 'мастер' },
     tab: { overview: 'Обзор', users: 'Люди', nodes: 'Ноды', protocols: 'Протоколы', more: 'Ещё' },
     sub: {
@@ -319,6 +334,21 @@ export const messages = {
     warpNote: 'WARP ставится на выходные ноды при деплое. Если на ноде он не поднялся, этот трафик уходит с IP ноды — смотрите значок WARP во вкладке «Серверы».'
   },
   en: {
+    site: {
+      title: 'Public page', edit: 'Edit site', heading: 'Title', intro: 'Introduction',
+      theme: 'Theme', paper: 'Light', slate: 'Dark', preview: 'Preview',
+      publish: 'Publish', published: 'Page published', rollback: 'Restore previous version',
+      panelHint: 'The panel home page and the default for new nodes. A manually installed HTML file takes priority.',
+      nodeHint: 'The page for this node’s direct domain and CDN. A manually installed HTML file takes priority.'
+    },
+    diag: {
+      title: 'Diagnostics', hint: 'Measured from the panel server. TCP checks port reachability',
+      tcp: 'TCP 443', direct: 'Direct HTTPS', cdn: 'HTTPS through CDN', cdn_tcp: 'TCP 8443 through CDN',
+      config_error: 'Deployment and configuration', update_error: 'Update', warp_error: 'WARP', sni_error: 'SNI',
+      journal: 'Service errors in the last 24 hours', empty: 'No errors in the latest entries',
+      noKey: 'The panel SSH key must be installed on the node to read the journal.',
+      refresh: 'Check', copy: 'Copy report', copied: 'Copied'
+    },
     nav: { overview: 'Overview', users: 'Users', nodes: 'Nodes', protocols: 'Protocols', routing: 'Routing', page: 'Subscription page', settings: 'Settings', sections: 'Sections', addUser: 'User', addNode: 'Node', master: 'master' },
     tab: { overview: 'Overview', users: 'Users', nodes: 'Nodes', protocols: 'Protocols', more: 'More' },
     sub: {

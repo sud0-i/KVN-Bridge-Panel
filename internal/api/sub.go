@@ -263,8 +263,9 @@ func (s *Server) subscription(c echo.Context) error {
 	// Кто пришёл: браузер или VPN-клиент. Некоторые клиенты пишут в User-Agent «Mozilla»,
 	// но text/html просят только браузеры.
 	req := c.Request()
+	format := c.QueryParam("format")
 	isBrowser := strings.Contains(req.Header.Get("User-Agent"), "Mozilla") &&
-		strings.Contains(req.Header.Get("Accept"), "text/html") && c.QueryParam("format") != "raw"
+		strings.Contains(req.Header.Get("Accept"), "text/html") && format != "raw" && format != "base64" && format != "singbox"
 
 	active := user.CanConnect(s.now())
 	if !isBrowser {
@@ -272,7 +273,7 @@ func (s *Server) subscription(c echo.Context) error {
 			return c.String(http.StatusForbidden, tr["inactive"])
 		}
 		ua := req.Header.Get("User-Agent")
-		if subFormat(ua, c.QueryParam("format")) == "singbox" {
+		if subFormat(ua, format) == "singbox" {
 			servers, err := s.subServers()
 			if err != nil {
 				return c.String(http.StatusInternalServerError, tr["error"])
@@ -323,6 +324,7 @@ func (s *Server) subscription(c echo.Context) error {
 		"Links":     strings.Join(links, "\n"),
 		"HasAny":    len(links) > 0,
 		"SubURL":    subURL,
+		"SteerURL":  subURL + "?format=base64",
 		"QR":        template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(qr)),
 		"Platforms": platforms,
 		"Current":   current,
@@ -408,6 +410,7 @@ var subTexts = map[string]map[string]string{
 		"download":      "Download",
 		"add":           "Add",
 		"copySub":       "Copy subscription link",
+		"copySteer":     "Copy link for Steer / OpenWrt",
 		"copied":        "Copied!",
 		"qr":            "Or scan the QR code in the app on another device",
 		"manual":        "Manual setup",
@@ -444,6 +447,7 @@ var subTexts = map[string]map[string]string{
 		"download":      "Скачать",
 		"add":           "Добавить",
 		"copySub":       "Скопировать ссылку подписки",
+		"copySteer":     "Скопировать ссылку для Steer / OpenWrt",
 		"copied":        "Скопировано!",
 		"qr":            "Или отсканируй QR-код в приложении на другом устройстве",
 		"manual":        "Ручная настройка",
@@ -532,6 +536,7 @@ a{color:#60a5fa}
   <p>{{.T.step2Hint}}</p>
   {{end}}
   <button type="button" class="wide" data-copy="{{.SubURL}}">{{.T.copySub}}</button>
+  <button type="button" class="wide" data-copy="{{.SteerURL}}">{{.T.copySteer}}</button>
   <img class="qr" src="{{.QR}}" alt="QR">
   <p class="center"><small>{{.T.qr}}</small></p>
   {{if .Platforms}}

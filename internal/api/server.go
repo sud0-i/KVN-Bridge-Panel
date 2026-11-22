@@ -44,7 +44,7 @@ type Server struct {
 	db       *gorm.DB
 	// deploy запускает деплой в фоне; вынесен в поле, чтобы в тестах не запускать настоящий Ansible
 	deploy             func(runner.DeployParams)
-	provisionSelfSteal func(context.Context, string, string, string, string, runner.SSHRoute) error
+	provisionSelfSteal func(context.Context, string, string, string, string, string, runner.SSHRoute) error
 	provisionWARP      func(context.Context, string, string, runner.SSHRoute) error
 	restoreMu          sync.Mutex
 	warpJobs           sync.Map
@@ -96,6 +96,7 @@ func (s *Server) Register(e *echo.Echo) {
 	api.DELETE("/users/:id", s.deleteUser, admin)
 
 	api.GET("/nodes", s.listNodes, admin)
+	api.GET("/nodes/:ip/diagnostics", s.nodeDiagnostics, admin, loginLimiter)
 	api.POST("/nodes", s.createNode, admin)
 	api.PATCH("/nodes/:ip", s.updateNode, admin)
 	api.POST("/nodes/:ip/self-steal", s.enableSelfSteal, admin)
@@ -129,6 +130,9 @@ func (s *Server) Register(e *echo.Echo) {
 	api.POST("/notify/test", s.testNotify, admin)
 	api.GET("/page-settings", s.getPageSettings, admin)
 	api.PUT("/page-settings", s.savePageSettings, admin)
+	api.GET("/public-site", s.getPublicSite, admin)
+	api.PUT("/public-site", s.savePublicSite, admin)
+	api.POST("/public-site/preview", previewPublicSite, admin)
 
 	// Эндпоинты для агентов: авторизация по персональному токену ноды.
 	// Путь не секретный — он записан у агентов, — но без токена это обычная 404.

@@ -126,5 +126,8 @@ func (s *Server) registerSite(e *echo.Echo) {
 		e.Static("/", site)
 		return
 	}
-	e.GET("/", func(c echo.Context) error { return c.HTML(http.StatusOK, website.Index) })
+	e.GET("/", func(c echo.Context) error {
+		_, state := s.publicSiteFor("")
+		return c.HTML(http.StatusOK, website.Render(state.Current))
+	})
 }

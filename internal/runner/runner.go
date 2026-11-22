@@ -3,6 +3,7 @@ package runner
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -28,6 +29,7 @@ type DeployParams struct {
 	MasterURL       string
 	SelfStealDomain string
 	SelfStealCDN    string
+	SelfStealHTML   string
 	WarpTransit     bool
 	SSH             SSHRoute
 }
@@ -78,6 +80,7 @@ func run(p DeployParams) error {
 		"agent_src":             agentSrc,
 		"self_steal_domain":     p.SelfStealDomain,
 		"self_steal_cdn_domain": p.SelfStealCDN,
+		"self_steal_site_b64":   base64.StdEncoding.EncodeToString([]byte(p.SelfStealHTML)),
 		"node_ip":               p.IP,
 		"node_ssh_port":         p.SSH.PortString(),
 		"warp_transit":          fmt.Sprint(p.WarpTransit),
@@ -91,12 +94,13 @@ func run(p DeployParams) error {
 }
 
 // ProvisionSelfSteal runs only the web site tasks, without restarting Xray or the agent.
-func ProvisionSelfSteal(ctx context.Context, ip, domain, cdn, keyFile string, route SSHRoute) error {
+func ProvisionSelfSteal(ctx context.Context, ip, domain, cdn, siteHTML, keyFile string, route SSHRoute) error {
 	return runPlaybook(ctx, ip, route, map[string]string{
 		"ansible_user":                 "root",
 		"ansible_ssh_private_key_file": keyFile,
 		"self_steal_domain":            domain,
 		"self_steal_cdn_domain":        cdn,
+		"self_steal_site_b64":          base64.StdEncoding.EncodeToString([]byte(siteHTML)),
 		"node_ip":                      ip,
 	}, "--tags", "self-steal")
 }

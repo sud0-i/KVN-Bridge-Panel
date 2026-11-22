@@ -29,12 +29,6 @@
     state: directory
     mode: "0755"
 
-- name: Копирование стандартной страницы
-  copy:
-    src: "{{ playbook_dir }}/../internal/website/index.html"
-    dest: /var/www/kvn-site/index.html
-    mode: "0644"
-
 - name: Установка конфигурации сайта
   copy:
     dest: /etc/caddy/KVN-SelfSteal
@@ -131,7 +125,6 @@
   command:
     argv:
       - curl
-      - --fail
       - --silent
       - --show-error
       - --noproxy
@@ -157,7 +150,6 @@
   command:
     argv:
       - curl
-      - --fail
       - --silent
       - --show-error
       - --noproxy
@@ -177,3 +169,10 @@
   delay: 2
   changed_when: false
   when: self_steal_cdn_domain and self_steal_cdn_domain != self_steal_domain
+
+- name: Публикация страницы
+  copy:
+    src: "{{ (playbook_dir ~ '/../internal/website/index.html') if not self_steal_site_b64 else omit }}"
+    content: "{{ (self_steal_site_b64 | b64decode) if self_steal_site_b64 else omit }}"
+    dest: /var/www/kvn-site/index.html
+    mode: "0644"

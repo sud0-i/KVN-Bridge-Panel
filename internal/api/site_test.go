@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -129,6 +130,15 @@ func TestHeadAndPreviewBots(t *testing.T) {
 	}
 	if rec := ev.do("GET", "/sub/tok12345", "", karing); rec.Code != http.StatusOK || !strings.HasPrefix(rec.Body.String(), "{") {
 		t.Fatalf("GET после HEAD: %d", rec.Code)
+	}
+	browser := map[string]string{"User-Agent": "Mozilla/5.0", "Accept": "text/html"}
+	if page := ev.do("GET", "/sub/tok12345", "", browser); !strings.Contains(page.Body.String(), "/sub/tok12345?format=base64") {
+		t.Fatal("нет ссылки для Steer")
+	}
+	rec = ev.do("GET", "/sub/tok12345?format=base64", "", browser)
+	raw, err := base64.StdEncoding.DecodeString(rec.Body.String())
+	if rec.Code != http.StatusOK || err != nil || !strings.Contains(string(raw), "vless://") {
+		t.Fatalf("ссылка для Steer: %d, %v", rec.Code, err)
 	}
 	if rec := ev.do("HEAD", "/", "", nil); rec.Code != http.StatusOK || rec.Body.Len() != 0 {
 		t.Fatalf("HEAD заглушки: %d", rec.Code)

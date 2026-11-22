@@ -2,6 +2,7 @@
 import Icon from '../ui/Icon.vue'
 import Toggle from '../ui/Toggle.vue'
 import Seg from '../ui/Seg.vue'
+import PublicSite from '../ui/PublicSite.vue'
 import { t, lang, setLang } from '../i18n'
 import { ref } from 'vue'
 import QRCode from 'qrcode'
@@ -25,6 +26,7 @@ const puPoll = () => {
   }, 5000)
 }
 const backupFile = ref(null)
+const publicSiteOpen = ref(false)
 const restoring = ref(false)
 const restoreResult = ref('')
 const restoreError = ref('')
@@ -95,6 +97,11 @@ const langs = [{ value: 'ru', label: 'Русский' }, { value: 'en', label: '
 
 <template>
   <div class="flex flex-col gap-4 sm:gap-6 max-w-3xl">
+    <section class="card flex-row flex-wrap items-center justify-between">
+      <h2 class="h2">{{ t('site.title') }}</h2>
+      <button type="button" class="btn btn-secondary" @click="publicSiteOpen = true">{{ t('site.edit') }}</button>
+    </section>
+    <PublicSite v-if="publicSiteOpen" @close="publicSiteOpen = false" />
     <!-- Двухфакторный вход -->
     <section v-if="twofa" class="card">
       <div class="flex items-start gap-3">
