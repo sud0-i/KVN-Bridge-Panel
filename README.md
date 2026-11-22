@@ -86,6 +86,12 @@ Set a password and confirm the IP address. The installer puts the panel and brid
 
 Provide a hostname in the remote node install form or in the SNI row of an online node with the panel SSH key. Point DNS directly to the node IP and keep TCP 80 accessible for Caddy. Caddy serves a static page on the node. For an existing node, its current SNI stays active if certificate issuance fails. Once the change succeeds, refresh subscriptions and re-import any standalone profiles.
 
+The panel and nodes with their own domain ship with the same default page. To serve your own files, put an `index.html` and its assets in `/opt/kvn-panel/data/site/` on the panel or `/var/www/kvn-site/custom/` on a remote node.
+
+After adding, changing or removing a CDN domain, use **Refresh site** in the node's SNI row. With Cloudflare SSL/TLS set to **Full**, `https://cdn.example.com/` serves the same page on port 443. The CDN origin must use port 443 for web requests. VPN clients still use port 8443 for CDN XHTTP.
+
+For a panel and bridge installed together before this change, copy the `http://{$DOMAIN}` redirect block from [Caddyfile.combined](Caddyfile.combined) into the deployed Caddyfile and reload Caddy. The panel image update keeps your deployed Caddyfile.
+
 ## WARP on a bridge
 
 - **Cascade.** Enable “WARP fallback to exit nodes” on a bridge. Xray probes the primary and WARP routes. It uses a healthy fallback when the primary routes are down and blocks cascade traffic when both fail. The fallback uses VLESS + REALITY over TCP to the exit node.

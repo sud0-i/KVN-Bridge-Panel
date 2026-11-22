@@ -44,7 +44,7 @@ type Server struct {
 	db       *gorm.DB
 	// deploy запускает деплой в фоне; вынесен в поле, чтобы в тестах не запускать настоящий Ansible
 	deploy             func(runner.DeployParams)
-	provisionSelfSteal func(context.Context, string, string, string, runner.SSHRoute) error
+	provisionSelfSteal func(context.Context, string, string, string, string, runner.SSHRoute) error
 	provisionWARP      func(context.Context, string, string, runner.SSHRoute) error
 	restoreMu          sync.Mutex
 	warpJobs           sync.Map

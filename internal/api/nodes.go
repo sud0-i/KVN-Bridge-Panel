@@ -369,6 +369,7 @@ func (s *Server) redeployNode(c echo.Context) error {
 		NodeToken:       secrets.Token,
 		MasterURL:       s.cfg.MasterURL,
 		SelfStealDomain: node.SelfStealDomain,
+		SelfStealCDN:    node.CDNDomain,
 		SSH:             sshRoute,
 		WarpTransit:     node.WarpTransit,
 	})

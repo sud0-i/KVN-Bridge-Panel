@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
+	"github.com/sud0-i/KVN-Bridge-Panel/internal/website"
 )
 
 // Секретный путь панели: /<AdminPath>/ — и интерфейс, и его API.
@@ -27,23 +28,6 @@ func NormalizeAdminPath(p string) (string, error) {
 	}
 	return "/" + p, nil
 }
-
-// stubPage — заглушка вместо панели. Своя — положите сайт в SiteDir (index.html и всё нужное).
-const stubPage = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Coming soon</title>
-<style>
-body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fafafa;color:#333;font-family:Georgia,serif}
-main{text-align:center;padding:24px}
-h1{font-weight:normal;font-size:32px;margin:0 0 8px}
-p{color:#888;margin:0}
-</style>
-</head>
-<body><main><h1>Coming soon</h1><p>This site is under construction.</p></main></body>
-</html>`
 
 const notFoundPage = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>404 Not Found</title></head>
@@ -142,5 +126,5 @@ func (s *Server) registerSite(e *echo.Echo) {
 		e.Static("/", site)
 		return
 	}
-	e.GET("/", func(c echo.Context) error { return c.HTML(http.StatusOK, stubPage) })
+	e.GET("/", func(c echo.Context) error { return c.HTML(http.StatusOK, website.Index) })
 }

@@ -38,7 +38,7 @@ func TestHiddenPanel(t *testing.T) {
 	ev := hiddenEnv(t, "")
 
 	// Снаружи — обычный сайт-заглушка
-	if rec := ev.do("GET", "/", "", nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Coming soon") {
+	if rec := ev.do("GET", "/", "", nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Plain Web Notes") {
 		t.Fatalf("корень: %d %s", rec.Code, rec.Body)
 	}
 	for _, probe := range []struct{ method, path string }{

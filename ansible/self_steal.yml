@@ -23,16 +23,48 @@
     port: "80"
     proto: tcp
 
+- name: Создание каталога сайта
+  file:
+    path: /var/www/kvn-site
+    state: directory
+    mode: "0755"
+
+- name: Копирование стандартной страницы
+  copy:
+    src: "{{ playbook_dir }}/../internal/website/index.html"
+    dest: /var/www/kvn-site/index.html
+    mode: "0644"
+
 - name: Установка конфигурации сайта
   copy:
     dest: /etc/caddy/KVN-SelfSteal
     mode: "0644"
+    validate: /usr/bin/caddy adapt --adapter caddyfile --config %s
     content: |
       {
           admin off
+          skip_install_trust
           auto_https disable_redirects
           servers 127.0.0.1:9444 {
               protocols h1 h2
+          }
+      }
+
+      (public_site) {
+          header Alt-Svc "clear"
+          @custom file {
+              root /var/www/kvn-site/custom
+              try_files /index.html
+          }
+          handle @custom {
+              root * /var/www/kvn-site/custom
+              file_server
+          }
+          handle {
+              root * /var/www/kvn-site
+              file_server {
+                  hide /var/www/kvn-site/custom
+              }
           }
       }
 
@@ -48,10 +80,20 @@
                   disable_tlsalpn_challenge
               }
           }
-          header Content-Type "text/html; charset=utf-8"
-          header Alt-Svc "clear"
-          respond "<!doctype html><html lang='en'><meta charset='utf-8'><title>Welcome</title><h1>Welcome</h1></html>" 200
+          import public_site
       }
+      {% if self_steal_cdn_domain and self_steal_cdn_domain != self_steal_domain %}
+
+      http://{{ self_steal_cdn_domain }} {
+          redir https://{{ self_steal_cdn_domain }}{uri} 308
+      }
+
+      https://{{ self_steal_cdn_domain }}:9444 {
+          bind 127.0.0.1
+          tls internal
+          import public_site
+      }
+      {% endif %}
   register: self_steal_config
 
 - name: Установка отдельной службы сайта
@@ -110,3 +152,28 @@
   retries: 30
   delay: 3
   changed_when: false
+
+- name: Проверка локального HTTPS для CDN-имени
+  command:
+    argv:
+      - curl
+      - --fail
+      - --silent
+      - --show-error
+      - --noproxy
+      - "*"
+      - --max-time
+      - "5"
+      - --cacert
+      - /var/lib/kvn-self-steal/caddy/pki/authorities/local/root.crt
+      - --connect-to
+      - "{{ self_steal_cdn_domain }}:443:127.0.0.1:9444"
+      - --output
+      - /dev/null
+      - "https://{{ self_steal_cdn_domain }}/"
+  register: self_steal_cdn_https
+  until: self_steal_cdn_https.rc == 0
+  retries: 10
+  delay: 2
+  changed_when: false
+  when: self_steal_cdn_domain and self_steal_cdn_domain != self_steal_domain

@@ -27,6 +27,7 @@ type DeployParams struct {
 	NodeToken       string
 	MasterURL       string
 	SelfStealDomain string
+	SelfStealCDN    string
 	WarpTransit     bool
 	SSH             SSHRoute
 }
@@ -69,16 +70,17 @@ func run(p DeployParams) error {
 	// Секреты передаём файлом с правами 0600, а не аргументами командной строки:
 	// аргументы видны любому процессу через ps / /proc
 	v := map[string]string{
-		"ansible_user":      "root",
-		"master_url":        p.MasterURL,
-		"priv_key":          p.PrivateKey,
-		"node_token":        p.NodeToken,
-		"node_role":         p.Role,
-		"agent_src":         agentSrc,
-		"self_steal_domain": p.SelfStealDomain,
-		"node_ip":           p.IP,
-		"node_ssh_port":     p.SSH.PortString(),
-		"warp_transit":      fmt.Sprint(p.WarpTransit),
+		"ansible_user":          "root",
+		"master_url":            p.MasterURL,
+		"priv_key":              p.PrivateKey,
+		"node_token":            p.NodeToken,
+		"node_role":             p.Role,
+		"agent_src":             agentSrc,
+		"self_steal_domain":     p.SelfStealDomain,
+		"self_steal_cdn_domain": p.SelfStealCDN,
+		"node_ip":               p.IP,
+		"node_ssh_port":         p.SSH.PortString(),
+		"warp_transit":          fmt.Sprint(p.WarpTransit),
 	}
 	if p.RootPassword != "" {
 		v["ansible_password"] = p.RootPassword
@@ -89,11 +91,12 @@ func run(p DeployParams) error {
 }
 
 // ProvisionSelfSteal runs only the web site tasks, without restarting Xray or the agent.
-func ProvisionSelfSteal(ctx context.Context, ip, domain, keyFile string, route SSHRoute) error {
+func ProvisionSelfSteal(ctx context.Context, ip, domain, cdn, keyFile string, route SSHRoute) error {
 	return runPlaybook(ctx, ip, route, map[string]string{
 		"ansible_user":                 "root",
 		"ansible_ssh_private_key_file": keyFile,
 		"self_steal_domain":            domain,
+		"self_steal_cdn_domain":        cdn,
 		"node_ip":                      ip,
 	}, "--tags", "self-steal")
 }

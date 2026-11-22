@@ -39,10 +39,7 @@ func (s *Server) enableSelfSteal(c echo.Context) error {
 	if node.IsLocalBridge() || !s.isAlive(node) || !hasPanelKey(node) {
 		return jsonError(c, http.StatusBadRequest, "Нужна подключённая удалённая нода с SSH-ключом панели")
 	}
-	if node.SelfStealDomain == domain {
-		return c.NoContent(http.StatusNoContent)
-	}
-	if node.SelfStealDomain != "" {
+	if node.SelfStealDomain != "" && node.SelfStealDomain != domain {
 		return jsonError(c, http.StatusConflict, "На этой ноде уже настроен собственный сайт")
 	}
 	if _, _, err := s.sshKey.load(); err != nil {
@@ -55,8 +52,11 @@ func (s *Server) enableSelfSteal(c echo.Context) error {
 	}
 
 	// Завершаем операцию даже если администратор закрыл окно во время выпуска сертификата.
-	if err := s.provisionSelfSteal(context.WithoutCancel(c.Request().Context()), ip, domain, s.sshKey.path, route); err != nil {
+	if err := s.provisionSelfSteal(context.WithoutCancel(c.Request().Context()), ip, domain, node.CDNDomain, s.sshKey.path, route); err != nil {
 		return jsonError(c, http.StatusBadGateway, "Не удалось настроить сайт: "+err.Error())
+	}
+	if node.SelfStealDomain == domain {
+		return c.NoContent(http.StatusNoContent)
 	}
 	res := s.db.Model(&node).Where("token_hash = ? AND sni = ?", node.TokenHash, node.SNI).
 		Updates(map[string]any{

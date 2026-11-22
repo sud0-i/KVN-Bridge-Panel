@@ -42,6 +42,7 @@ COPY --from=backend-builder /app/kvn-master .
 COPY --from=backend-builder /app/build/agent_linux_amd64 ./build/agent_linux_amd64
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 COPY ansible/ ./ansible/
+COPY internal/website/index.html ./internal/website/index.html
 
 EXPOSE 8080
 

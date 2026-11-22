@@ -13,6 +13,7 @@
     node_role: ""
     agent_src: ""
     self_steal_domain: ""
+    self_steal_cdn_domain: ""
     node_ssh_port: "22"
     warp_transit: "false"
 

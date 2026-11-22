@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Short, practical notes on making small websites.">
+  <title>Plain Web Notes</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f7f3eb; color: #242820; font: 1rem/1.65 system-ui, sans-serif; }
+    header, main, footer { width: min(100% - 2.5rem, 45rem); margin-inline: auto; }
+    header { padding-block: 3rem 2rem; border-bottom: 1px solid #c5c2b4; }
+    h1, h2 { font-family: Georgia, serif; line-height: 1.12; font-weight: normal; }
+    h1 { margin: 0; font-size: clamp(2.7rem, 9vw, 5rem); }
+    h2 { margin: 0 0 .5rem; font-size: clamp(1.5rem, 5vw, 2rem); }
+    p { margin: 0; max-width: 58ch; }
+    header p { margin-top: .75rem; }
+    article { padding-block: 1.65rem; border-bottom: 1px solid #c5c2b4; }
+    footer { padding-block: 1.25rem 2rem; color: #53594c; }
+    a { color: #2b583d; text-underline-offset: .2em; }
+  </style>
+</head>
+<body>
+  <header id="top">
+    <h1>Plain Web Notes</h1>
+    <p>Short, practical notes on making small websites.</p>
+  </header>
+  <main>
+    <article>
+      <h2>Start with what the reader needs</h2>
+      <p>Give each page one job. Put its main answer near the top, use headings that describe what follows, and label links with their destination.</p>
+    </article>
+    <article>
+      <h2>Let the page fit the screen</h2>
+      <p>Keep long passages to a comfortable width and let the layout shrink on smaller screens. Read the page on a phone and try it with the text enlarged.</p>
+    </article>
+    <article>
+      <h2>Keep a copy you can restore</h2>
+      <p>Save the source and any images together. Before changing hosts, open the copy on a different machine to catch any files or links you missed.</p>
+    </article>
+  </main>
+  <footer><a href="#top">Back to top</a></footer>
+</body>
+</html>

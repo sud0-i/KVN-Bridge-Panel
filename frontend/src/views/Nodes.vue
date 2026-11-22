@@ -76,7 +76,7 @@ const selfStealError = ref('')
 
 function openSelfSteal(node) {
   selfStealNode.value = node
-  selfStealDomain.value = ''
+  selfStealDomain.value = node.SelfStealDomain || ''
   selfStealError.value = ''
 }
 
@@ -180,7 +180,7 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
             <dt class="text-mute">{{ t('nd.sni') }}</dt>
             <dd class="text-right break-all">{{ n.RealityDest ? t('nd.ownSite', { d: n.SelfStealDomain || n.SNI }) : (n.SNI || '—') }}
               <button v-if="!n.RealityDest" type="button" class="ml-2 text-acc hover:text-acc-hover" @click="openSNI(n)">{{ t('sn.pick') }}</button>
-              <button v-if="!isLocalBridge(n) && !n.SelfStealDomain && n.IsOnline && hasPanelKey(n)" type="button" class="ml-2 text-acc hover:text-acc-hover" @click="openSelfSteal(n)">{{ t('nd.selfSteal') }}</button></dd>
+              <button v-if="!isLocalBridge(n) && n.IsOnline && hasPanelKey(n)" type="button" class="ml-2 text-acc hover:text-acc-hover" @click="openSelfSteal(n)">{{ t(n.SelfStealDomain ? 'nd.selfStealRefresh' : 'nd.selfSteal') }}</button></dd>
           </div>
           <div class="flex justify-between items-center gap-4 py-2 border-t border-line">
             <dt class="text-mute">CDN</dt>
@@ -304,11 +304,11 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
     </section>
   </div>
   <Terminal v-if="terminalFor" :node="terminalFor" @close="terminalFor = null" @go="(v) => emit('go', v)" />
-  <Sheet v-if="selfStealNode" :title="t('nd.selfSteal')" @close="closeSelfSteal">
+  <Sheet v-if="selfStealNode" :title="t(selfStealNode.SelfStealDomain ? 'nd.selfStealRefresh' : 'nd.selfSteal')" @close="closeSelfSteal">
     <label for="self-steal-domain" class="label">{{ t('nd.selfStealDomain') }}</label>
-    <input id="self-steal-domain" v-model.trim="selfStealDomain" type="text" placeholder="site.example.com" autocapitalize="off" class="input" :disabled="selfStealBusy">
+    <input id="self-steal-domain" v-model.trim="selfStealDomain" type="text" placeholder="site.example.com" autocapitalize="off" class="input" :disabled="selfStealBusy" :readonly="!!selfStealNode.SelfStealDomain">
     <p class="hint">{{ t('nd.selfStealHint') }}</p>
-    <p class="text-xs text-warn">{{ t('nd.selfStealSubscriptions') }}</p>
+    <p v-if="!selfStealNode.SelfStealDomain" class="text-xs text-warn">{{ t('nd.selfStealSubscriptions') }}</p>
     <p v-if="selfStealError" role="alert" class="text-sm text-err">{{ selfStealError }}</p>
     <p v-if="selfStealBusy" role="status" class="text-sm text-mute">{{ t('nd.selfStealPending') }}</p>
     <template #footer>

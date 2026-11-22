@@ -17,6 +17,10 @@
 	}
 }
 
+http://{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} 308
+}
+
 {$DOMAIN} {
 	reverse_proxy master:8080
 }

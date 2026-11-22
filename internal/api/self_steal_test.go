@@ -22,7 +22,7 @@ func TestEnableSelfStealPreservesKeysAndWaitsForTLS(t *testing.T) {
 	auth := ev.adminToken()
 	path := "/api/nodes/" + ip + "/self-steal"
 	body := `{"domain":"Site.Example.com"}`
-	ev.s.provisionSelfSteal = func(_ context.Context, target, name, key string, _ runner.SSHRoute) error {
+	ev.s.provisionSelfSteal = func(_ context.Context, target, name, cdn, key string, _ runner.SSHRoute) error {
 		if target != ip || name != domain || key != ev.s.sshKey.path {
 			t.Fatalf("provisioning got %q %q %q", target, name, key)
 		}
@@ -35,7 +35,7 @@ func TestEnableSelfStealPreservesKeysAndWaitsForTLS(t *testing.T) {
 		t.Fatalf("failed provisioning changed REALITY: %+v", got)
 	}
 
-	ev.s.provisionSelfSteal = func(context.Context, string, string, string, runner.SSHRoute) error { return nil }
+	ev.s.provisionSelfSteal = func(context.Context, string, string, string, string, runner.SSHRoute) error { return nil }
 	if rec := ev.do("POST", path, body, auth); rec.Code != http.StatusNoContent {
 		t.Fatalf("enable self-steal: %d %s", rec.Code, rec.Body)
 	}
@@ -43,6 +43,24 @@ func TestEnableSelfStealPreservesKeysAndWaitsForTLS(t *testing.T) {
 	if after.Reality.SNI != domain || after.Reality.Dest != selfStealTarget ||
 		after.Reality.ShortID != before.Reality.ShortID || after.PanelChannel != "" {
 		t.Fatalf("unexpected REALITY config or node role: %+v, channel=%q", after.Reality, after.PanelChannel)
+	}
+	const cdn = "cdn.example.com"
+	if err := ev.db.Model(&models.Node{}).Where("ip = ?", ip).Update("cdn_domain", cdn).Error; err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	ev.s.provisionSelfSteal = func(_ context.Context, target, name, alias, key string, _ runner.SSHRoute) error {
+		called = true
+		if target != ip || name != domain || alias != cdn {
+			t.Fatalf("refresh got %q %q %q", target, name, alias)
+		}
+		return nil
+	}
+	if rec := ev.do("POST", path, body, auth); rec.Code != http.StatusNoContent || !called {
+		t.Fatalf("refresh self-steal: %d %s", rec.Code, rec.Body)
+	}
+	if got := ev.syncAs(token).Reality; got != after.Reality {
+		t.Fatalf("refresh changed REALITY: %+v", got)
 	}
 }
 
