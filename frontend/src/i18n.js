@@ -4,6 +4,8 @@ export const messages = {
   ru: {
     site: {
       title: 'Публичная страница', edit: 'Редактировать сайт', heading: 'Заголовок', intro: 'Вступление',
+      html: 'HTML страницы', template: 'Настроить встроенный шаблон',
+      htmlHint: 'Вставьте HTML целиком, до 128 КиБ. CSS и изображения поддерживаются. JavaScript и формы отключены. Если поле пустое, используется шаблон.',
       theme: 'Оформление', paper: 'Светлое', slate: 'Тёмное', preview: 'Предпросмотр',
       publish: 'Опубликовать', published: 'Страница опубликована', rollback: 'Вернуть предыдущую версию',
       panelHint: 'Страница на главном адресе панели и шаблон для новых нод. Если загружен свой HTML-файл, он имеет приоритет.',
@@ -336,6 +338,8 @@ export const messages = {
   en: {
     site: {
       title: 'Public page', edit: 'Edit site', heading: 'Title', intro: 'Introduction',
+      html: 'Page HTML', template: 'Customize the built-in template',
+      htmlHint: 'Paste the HTML, up to 128 KiB. CSS and images are supported. JavaScript and forms are disabled. An empty field uses the template.',
       theme: 'Theme', paper: 'Light', slate: 'Dark', preview: 'Preview',
       publish: 'Publish', published: 'Page published', rollback: 'Restore previous version',
       panelHint: 'The panel home page and the default for new nodes. A manually installed HTML file takes priority.',

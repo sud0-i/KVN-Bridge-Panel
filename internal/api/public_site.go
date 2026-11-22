@@ -56,7 +56,8 @@ func previewPublicSite(c echo.Context) error {
 	if err := page.Validate(); err != nil {
 		return jsonError(c, http.StatusBadRequest, err.Error())
 	}
-	return c.HTML(http.StatusOK, website.Render(page))
+	c.Response().Header().Set("Content-Security-Policy", website.Policy)
+	return c.HTML(http.StatusOK, website.Preview(page))
 }
 
 func (s *Server) savePublicSite(c echo.Context) error {

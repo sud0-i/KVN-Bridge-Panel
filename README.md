@@ -88,7 +88,7 @@ Provide a hostname in the remote node install form or in the SNI row of an onlin
 
 The panel and nodes with their own domain ship with the same default page. To serve your own files, put an `index.html` and its assets in `/opt/kvn-panel/data/site/` on the panel or `/var/www/kvn-site/custom/` on a remote node.
 
-Use **Settings → Public page** to edit the title, introduction and theme, preview changes or restore the previous version. This sets the panel page and the default for new nodes. For an individual node with its own domain, use **Edit site** in its SNI row.
+Use **Settings → Public page** to paste HTML or customize the built-in template. This sets the panel page and the default for new nodes. To publish directly to a node with its own domain, use **Edit site** in its SNI row, paste the HTML, and click **Publish**. Preview and rollback are available in the same dialog. The HTML field accepts up to 128 KiB. Inline CSS and HTTPS or embedded images are supported. JavaScript and form submissions are disabled.
 
 After adding, changing or removing a CDN domain, use **Refresh site** in the node's SNI row. With Cloudflare SSL/TLS set to **Full**, `https://cdn.example.com/` serves the same page on port 443. The CDN origin must use port 443 for web requests. VPN clients still use port 8443 for CDN XHTTP.
 

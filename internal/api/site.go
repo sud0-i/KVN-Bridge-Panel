@@ -128,6 +128,9 @@ func (s *Server) registerSite(e *echo.Echo) {
 	}
 	e.GET("/", func(c echo.Context) error {
 		_, state := s.publicSiteFor("")
+		if state.Current.HTML != "" {
+			c.Response().Header().Set("Content-Security-Policy", website.Policy)
+		}
 		return c.HTML(http.StatusOK, website.Render(state.Current))
 	})
 }

@@ -131,8 +131,8 @@ func (s *Server) Register(e *echo.Echo) {
 	api.GET("/page-settings", s.getPageSettings, admin)
 	api.PUT("/page-settings", s.savePageSettings, admin)
 	api.GET("/public-site", s.getPublicSite, admin)
-	api.PUT("/public-site", s.savePublicSite, admin)
-	api.POST("/public-site/preview", previewPublicSite, admin)
+	api.PUT("/public-site", s.savePublicSite, admin, middleware.BodyLimit("1M"))
+	api.POST("/public-site/preview", previewPublicSite, admin, middleware.BodyLimit("1M"))
 
 	// Эндпоинты для агентов: авторизация по персональному токену ноды.
 	// Путь не секретный — он записан у агентов, — но без токена это обычная 404.

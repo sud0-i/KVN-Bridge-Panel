@@ -48,21 +48,32 @@ onMounted(() => apply('load'))
 </script>
 
 <template>
-  <Sheet :title="t('site.title')" @close="!busy && $emit('close')">
+  <Sheet :title="t('site.title')" wide @close="!busy && $emit('close')">
     <p class="hint">{{ t(node ? 'site.nodeHint' : 'site.panelHint') }}</p>
     <fieldset v-if="page" :disabled="busy" class="flex flex-col gap-3">
-      <label class="label">{{ t('site.heading') }}
-        <input v-model="page.title" maxlength="80" class="input mt-1" @input="preview = ''">
+      <label class="label">{{ t('site.html') }}
+        <textarea v-model="page.html" rows="10" class="input mt-1 font-mono"
+          placeholder="<!doctype html>" spellcheck="false" aria-describedby="public-site-html-hint"
+          @input="preview = ''" />
       </label>
-      <label class="label">{{ t('site.intro') }}
-        <textarea v-model="page.intro" maxlength="300" rows="3" class="input mt-1" @input="preview = ''" />
-      </label>
-      <label class="label">{{ t('site.theme') }}
-        <select v-model="page.theme" class="input mt-1" @change="preview = ''">
-          <option value="paper">{{ t('site.paper') }}</option>
-          <option value="slate">{{ t('site.slate') }}</option>
-        </select>
-      </label>
+      <p id="public-site-html-hint" class="hint">{{ t('site.htmlHint') }}</p>
+      <details v-if="!page.html?.trim()" class="rounded-xl border border-line p-3">
+        <summary class="cursor-pointer text-sm">{{ t('site.template') }}</summary>
+        <div class="mt-3 flex flex-col gap-3">
+          <label class="label">{{ t('site.heading') }}
+            <input v-model="page.title" maxlength="80" class="input mt-1" @input="preview = ''">
+          </label>
+          <label class="label">{{ t('site.intro') }}
+            <textarea v-model="page.intro" maxlength="300" rows="3" class="input mt-1" @input="preview = ''" />
+          </label>
+          <label class="label">{{ t('site.theme') }}
+            <select v-model="page.theme" class="input mt-1" @change="preview = ''">
+              <option value="paper">{{ t('site.paper') }}</option>
+              <option value="slate">{{ t('site.slate') }}</option>
+            </select>
+          </label>
+        </div>
+      </details>
     </fieldset>
     <iframe v-if="preview" :srcdoc="preview" :title="t('site.preview')" sandbox class="h-72 w-full rounded-xl border border-line" />
     <p v-if="busy" role="status" class="hint">{{ t('loading') }}</p>
