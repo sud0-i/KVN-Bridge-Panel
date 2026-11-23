@@ -41,6 +41,9 @@ func nodeAddress(n models.Node) string {
 	if n.Domain != "" {
 		return n.Domain
 	}
+	if n.SelfStealDomain != "" {
+		return n.SelfStealDomain
+	}
 	return n.IP
 }
 

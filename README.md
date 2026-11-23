@@ -86,7 +86,7 @@ Set a password and confirm the IP address. The installer puts the panel and brid
 
 Provide a hostname in the remote node install form or in the SNI row of an online node with the panel SSH key. Point DNS directly to the node IP and keep TCP 80 accessible for Caddy. Caddy serves a static page on the node. For an existing node, its current SNI stays active if certificate issuance fails. Once the change succeeds, refresh subscriptions and re-import any standalone profiles.
 
-The panel and nodes with their own domain ship with the same default page. To serve your own files, put an `index.html` and its assets in `/opt/kvn-panel/data/site/` on the panel or `/var/www/kvn-site/custom/` on a remote node.
+Direct subscription profiles use the node’s site domain when no separate connection domain is configured. The panel and nodes with their own domain ship with the same default page. To serve your own files, put an `index.html` and its assets in `/opt/kvn-panel/data/site/` on the panel or `/var/www/kvn-site/custom/` on a remote node.
 
 Use **Settings → Public page** to paste HTML or customize the built-in template. This sets the panel page and the default for new nodes. To publish directly to a node with its own domain, use **Edit site** in its SNI row, paste the HTML, and click **Publish**. Preview and rollback are available in the same dialog. The HTML field accepts up to 128 KiB. Inline CSS and HTTPS or embedded images are supported. JavaScript and form submissions are disabled.
 
