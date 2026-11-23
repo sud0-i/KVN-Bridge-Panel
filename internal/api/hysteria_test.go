@@ -36,7 +36,9 @@ func TestHy2TrustedTLSWaitsForAgent(t *testing.T) {
 	if rec := ev.do("PATCH", path, `{"hy2_public_tls":true}`, admin); rec.Code != http.StatusNoContent {
 		t.Fatalf("enable: %d %s", rec.Code, rec.Body)
 	}
-	ev.putSettings(`{"hysteria":true}`)
+	if rec := ev.putSettings(`{"region_route":"warp","hysteria":true}`); rec.Code != http.StatusOK {
+		t.Fatalf("enable Hysteria 2: %d %s", rec.Code, rec.Body)
+	}
 	cert := testHy2Cert(t, name)
 	if got := ev.syncWithCert(token, cert).Hysteria; got == nil || got.PublicTLSName != name || got.CaddyInDocker {
 		t.Fatalf("desired settings: %+v", got)
