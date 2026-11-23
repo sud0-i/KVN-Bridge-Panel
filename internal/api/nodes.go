@@ -239,10 +239,11 @@ func (s *Server) updateNode(c echo.Context) error {
 	}
 	// Меняется только то, что передано: {"sni": …}, {"label": …}, {"cdn": …}
 	var req struct {
-		SNI         *string `json:"sni"`
-		Label       *string `json:"label"`
-		CDN         *string `json:"cdn"`
-		WarpTransit *bool   `json:"warp_transit"`
+		SNI          *string `json:"sni"`
+		Label        *string `json:"label"`
+		CDN          *string `json:"cdn"`
+		WarpTransit  *bool   `json:"warp_transit"`
+		Hy2PublicTLS *bool   `json:"hy2_public_tls"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return jsonError(c, http.StatusBadRequest, "Неверный формат")
@@ -281,6 +282,12 @@ func (s *Server) updateNode(c echo.Context) error {
 			return jsonError(c, http.StatusBadRequest, "Резерв WARP доступен для моста")
 		}
 		updates["warp_transit"] = *req.WarpTransit
+	}
+	if req.Hy2PublicTLS != nil {
+		if *req.Hy2PublicTLS && hy2ManagedDomain(node) == "" {
+			return jsonError(c, http.StatusBadRequest, "Для доверенного сертификата Hysteria 2 нужен свой домен с Caddy")
+		}
+		updates["hy2_public_tls"] = *req.Hy2PublicTLS
 	}
 	if len(updates) == 0 {
 		return jsonError(c, http.StatusBadRequest, "Нечего менять")

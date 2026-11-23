@@ -70,8 +70,10 @@ type agent struct {
 	// maint — обновления агента, Xray и геобаз
 	maint *maintainer
 
-	// hy2Cert — сертификат Hysteria2 (PEM), который агент сообщает Мастеру для пина в подписках
-	hy2Cert []byte
+	// Последний успешно применённый TLS-сертификат Hysteria2.
+	hy2Cert        []byte
+	hy2TrustedName string
+	hy2TLSError    string
 
 	// lastErr — последняя ошибка применения конфига, уходит Мастеру при следующей синхронизации
 	lastErr string
@@ -105,11 +107,6 @@ func main() {
 	}
 
 	log.Printf("🤖 Агент запущен. Мастер: %s", a.masterURL)
-	// Уже выпущенный сертификат Hysteria2 сообщаем с первой же синхронизации
-	if cert, err := os.ReadFile(filepath.Join(filepath.Dir(a.configPath), hy2CertName)); err == nil {
-		a.hy2Cert = cert
-	}
-
 	a.sync()
 	// Канал до выходных нод: замер раз в минуту, результаты уходят с синхронизацией
 	go a.links.run()
@@ -181,7 +178,9 @@ func (a *agent) sync() {
 	}
 	if len(a.hy2Cert) > 0 {
 		req.Header.Set(protocol.HysteriaCertHeader, base64.StdEncoding.EncodeToString(a.hy2Cert))
+		req.Header.Set(protocol.HysteriaTLSHeader, a.hy2TrustedName)
 	}
+	req.Header.Set(protocol.HysteriaTLSErrorHeader, url.QueryEscape(a.hy2TLSError))
 
 	resp, err := a.http.Do(req)
 	if err != nil {
@@ -252,19 +251,18 @@ func (a *agent) sync() {
 		data.Warp = nil
 	}
 
-	// Hysteria2: сертификат выпускается на SNI ноды и лежит рядом с конфигом Xray.
-	// Если выпустить не удалось — поднимаем ноду без Hysteria, VLESS важнее.
+	a.hy2TLSError = ""
+	var hy2 hy2Certificate
 	if data.Hysteria != nil {
-		certFile, keyFile, certPEM, err := ensureHy2Cert(filepath.Dir(a.configPath), data.Reality.SNI, time.Now())
-		if err == nil {
-			err = prepareXrayTLSKey(keyFile)
-		}
+		var err error
+		hy2, err = a.configureHy2(data.Hysteria, data.Reality.SNI)
 		if err != nil {
 			log.Printf("⚠️ Hysteria2 выключен: %v", err)
+			a.hy2TLSError = err.Error()
 			data.Hysteria = nil
+			hy2 = hy2Certificate{}
 		} else {
-			data.Hysteria.CertFile, data.Hysteria.KeyFile = certFile, keyFile
-			a.hy2Cert = certPEM
+			data.Hysteria.CertFile, data.Hysteria.KeyFile = hy2.certFile, hy2.keyFile
 		}
 	}
 
@@ -299,6 +297,7 @@ func (a *agent) sync() {
 		data.Direct, data.Warp = nil, nil
 		if cfg, err = xray.Build(data, a.privKey); err == nil {
 			if changed, err = a.applyConfig(cfg); err == nil {
+				a.commitHy2(hy2)
 				a.lastErr = "Правила маршрутизации не применены: " + routingErr.Error()
 				log.Printf("✅ Конфиг обновлён без правил маршрутизации")
 				return
@@ -311,6 +310,7 @@ func (a *agent) sync() {
 		return
 	}
 	a.lastErr = ""
+	a.commitHy2(hy2)
 	if changed {
 		log.Printf("✅ Конфиг обновлён: роль %s, клиентов %d, экзитов %d", data.Role, len(data.Clients), len(data.Exits))
 	}
@@ -363,7 +363,16 @@ func (a *agent) applyConfig(cfg []byte) (bool, error) {
 		}
 	}
 	if out, err := exec.Command("systemctl", "restart", "xray").CombinedOutput(); err != nil {
-		return true, fmt.Errorf("перезапуск xray: %v\n%s", err, out)
+		restartErr := fmt.Errorf("перезапуск xray: %v\n%s", err, out)
+		if len(old) > 0 {
+			if err := writeFileAtomic(a.configPath, old, 0o644); err != nil {
+				return true, fmt.Errorf("%w; восстановление конфига: %v", restartErr, err)
+			}
+			if rollbackOut, err := exec.Command("systemctl", "restart", "xray").CombinedOutput(); err != nil {
+				return true, fmt.Errorf("%w; запуск прежнего конфига: %v\n%s", restartErr, err, rollbackOut)
+			}
+		}
+		return true, restartErr
 	}
 	return true, nil
 }

@@ -7,7 +7,30 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"strings"
+
+	"github.com/sud0-i/KVN-Bridge-Panel/internal/models"
 )
+
+func hy2ManagedDomain(n models.Node) string {
+	name := n.SelfStealDomain
+	if n.IsLocalBridge() {
+		name = n.Domain
+	}
+	name = strings.ToLower(name)
+	if validSelfStealDomain(name) {
+		return name
+	}
+	return ""
+}
+
+func hy2CertMatches(certPEM, name string) bool {
+	block, _ := pem.Decode([]byte(certPEM))
+	if block == nil {
+		return false
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	return err == nil && cert.VerifyHostname(name) == nil
+}
 
 // parseHy2Cert проверяет присланный агентом сертификат: base64 от одного PEM-блока
 // CERTIFICATE, который действительно разбирается как X.509. Иначе — пусто (не сохраняем).

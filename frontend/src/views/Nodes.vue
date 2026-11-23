@@ -11,7 +11,7 @@ import { ref, computed, onBeforeUnmount } from 'vue'
 import { t } from '../i18n'
 import { nodes, loadingNodes, routing, agentSHA, agentPending, xrayPending, nodeName, ago, fmtDateTime, bridges, exits,
   openDeploy, openRedeploy, editSNI, editLabel, editCDN, deleteNode, links, linksRange, fetchLinks,
-  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes, isLocalBridge, enableSelfSteal, setWarpTransit, installBridgeWARP } from '../store'
+  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes, isLocalBridge, enableSelfSteal, setWarpTransit, installBridgeWARP, setHy2PublicTLS } from '../store'
 
 const emit = defineEmits(['go'])
 
@@ -22,6 +22,17 @@ const errors = (n) => [
   n.WarpError && n.IsOnline && { title: t('warpOff'), text: n.WarpError },
   n.MieruError && routing.value?.mieru && { title: t('nd.mieruError'), text: n.MieruError },
 ].filter(Boolean)
+
+const hy2Available = (n) => n.SelfStealDomain || (isLocalBridge(n) && /\.[a-z]+$/i.test(n.Domain))
+const hy2TLSStatus = (n) => {
+  if (n.Hy2PublicTLS !== !!n.Hy2TrustedName) return t('nd.hy2TLSPending')
+  return t(n.Hy2TrustedName ? 'nd.hy2TLSActive' : 'nd.hy2TLSPin')
+}
+async function changeHy2TLS(node, event) {
+  const enabled = event.target.checked
+  event.target.checked = node.Hy2PublicTLS
+  if (confirm(t('nd.hy2TLSConfirm'))) await setHy2PublicTLS(node, enabled)
+}
 
 const protocols = (n) => {
   const r = routing.value
@@ -237,6 +248,16 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
                 <span :class="['text-[13px]', n.SSHKeysOnly ? 'text-ok' : '']">{{ n.SSHKeysOnly ? t('tm.sshKeysOnly') : t('tm.sshKeys') }}</span>
                 <button type="button" class="text-[13px] text-acc hover:text-acc-hover" @click="setKeysOnly(n, !n.SSHKeysOnly)">{{ n.SSHKeysOnly ? t('tm.keysOnlyOff') : t('tm.keysOnlyOn') }}</button>
               </template>
+            </dd>
+          </div>
+          <div v-if="routing?.hysteria && hy2Available(n)" class="flex justify-between gap-4 py-2 border-t border-line">
+            <dt class="text-mute">{{ t('nd.hy2TLS') }}</dt>
+            <dd class="text-right">
+              <label class="inline-flex items-center gap-2 text-sm">
+                {{ hy2TLSStatus(n) }}
+                <input type="checkbox" :aria-label="t('nd.hy2TLS')" :checked="n.Hy2PublicTLS" @change="changeHy2TLS(n, $event)">
+              </label>
+              <p v-if="n.Hy2TLSError" class="text-xs text-warn">{{ n.Hy2TLSError }}</p>
             </dd>
           </div>
           <div class="flex justify-between gap-4 py-2 border-t border-line">

@@ -50,7 +50,13 @@ func (s *Server) sync(c echo.Context) error {
 	}
 	if cert := parseHy2Cert(c.Request().Header.Get(protocol.HysteriaCertHeader)); cert != "" {
 		updates["hy2_cert"] = cert
+		// Старый агент сообщает только закреплённый сертификат, в том числе после отката версии.
+		updates["hy2_trusted_name"] = ""
+		if name := c.Request().Header.Get(protocol.HysteriaTLSHeader); name != "" && name == hy2ManagedDomain(*node) && hy2CertMatches(cert, name) {
+			updates["hy2_trusted_name"] = name
+		}
 	}
+	updates["hy2_tls_error"] = header(protocol.HysteriaTLSErrorHeader)
 	s.db.Model(&models.Node{}).Where("ip = ?", node.IP).Updates(updates)
 	if raw, err := url.QueryUnescape(c.Request().Header.Get(protocol.MetricsHeader)); err == nil && raw != "" {
 		s.storeMetrics(node, raw, now)
@@ -85,6 +91,10 @@ func (s *Server) sync(c echo.Context) error {
 	}
 	resp.Fingerprint = routing.fingerprint()
 	resp.Hysteria = routing.hysteria()
+	if resp.Hysteria != nil && node.Hy2PublicTLS {
+		resp.Hysteria.PublicTLSName = hy2ManagedDomain(*node)
+		resp.Hysteria.CaddyInDocker = node.IsLocalBridge()
+	}
 	// Mieru — на мостах и, если в подписке есть прямые ссылки, на выходных нодах
 	if routing.Mieru && (node.Type == protocol.RoleBridge || routing.DirectExitLinks) {
 		users, err := s.userClients()

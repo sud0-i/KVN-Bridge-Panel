@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"math/big"
+	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +19,66 @@ import (
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/models"
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/protocol"
 )
+
+func TestHy2TrustedTLSWaitsForAgent(t *testing.T) {
+	ev := newEnv(t)
+	const ip = "10.0.0.1"
+	const name = "site.example.com"
+	token := ev.addNode(ip, protocol.RoleBridge)
+	admin := ev.adminToken()
+	path := "/api/nodes/" + ip
+	if rec := ev.do("PATCH", path, `{"hy2_public_tls":true}`, admin); rec.Code != http.StatusBadRequest {
+		t.Fatalf("enable without own domain: %d", rec.Code)
+	}
+	if err := ev.db.Model(&models.Node{}).Where("ip = ?", ip).Update("self_steal_domain", name).Error; err != nil {
+		t.Fatal(err)
+	}
+	if rec := ev.do("PATCH", path, `{"hy2_public_tls":true}`, admin); rec.Code != http.StatusNoContent {
+		t.Fatalf("enable: %d %s", rec.Code, rec.Body)
+	}
+	ev.putSettings(`{"hysteria":true}`)
+	cert := testHy2Cert(t, name)
+	if got := ev.syncWithCert(token, cert).Hysteria; got == nil || got.PublicTLSName != name || got.CaddyInDocker {
+		t.Fatalf("desired settings: %+v", got)
+	}
+	getNode := func() models.Node {
+		var n models.Node
+		if err := ev.db.First(&n, "ip = ?", ip).Error; err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n := getNode(); !n.Hy2PublicTLS || n.Hy2TrustedName != "" || !strings.Contains(hy2Link("client", subServer{Node: n}), "pinSHA256=") {
+		t.Fatalf("subscription switched before agent confirmation: %+v", n)
+	}
+	report := ev.do("GET", "/api/sync", "", map[string]string{
+		protocol.NodeTokenHeader: token, protocol.HysteriaTLSHeader: name,
+		protocol.HysteriaCertHeader: base64.StdEncoding.EncodeToString([]byte(cert)),
+	})
+	if report.Code != http.StatusOK {
+		t.Fatalf("report: %d %s", report.Code, report.Body)
+	}
+	n := getNode()
+	link, err := url.Parse(hy2Link("client", subServer{Node: n}))
+	if err != nil || link.Hostname() != name || link.Query().Get("sni") != name ||
+		link.Query().Has("insecure") || link.Query().Has("pinSHA256") {
+		t.Fatalf("trusted profile: %v %v", link, err)
+	}
+	raw, err := singboxConfig("client", "Example", []subServer{{Node: n, Hy2: true}}, true)
+	if err != nil || strings.Contains(string(raw), `"certificate"`) || !strings.Contains(string(raw), name) {
+		t.Fatalf("trusted sing-box profile: %s %v", raw, err)
+	}
+	if rec := ev.do("PATCH", path, `{"hy2_public_tls":false}`, admin); rec.Code != http.StatusNoContent {
+		t.Fatalf("disable: %d %s", rec.Code, rec.Body)
+	}
+	if getNode().Hy2TrustedName != name {
+		t.Fatal("public TLS should remain published until the agent switches back")
+	}
+	ev.syncWithCert(token, cert)
+	if getNode().Hy2TrustedName != "" {
+		t.Fatal("agent rollback to pin was not recorded")
+	}
+}
 
 func testHy2Cert(t *testing.T, name string) string {
 	t.Helper()

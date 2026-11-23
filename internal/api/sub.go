@@ -135,9 +135,13 @@ func hy2Link(userID string, srv subServer) string {
 		host = "[" + host + "]"
 	}
 	q := url.Values{}
-	q.Set("sni", hy2ServerName(srv.Node.Hy2Cert))
-	q.Set("insecure", "1")
-	q.Set("pinSHA256", hy2Pin(srv.Node.Hy2Cert))
+	if n := srv.Node; n.Hy2TrustedName != "" {
+		q.Set("sni", n.Hy2TrustedName)
+	} else {
+		q.Set("sni", hy2ServerName(n.Hy2Cert))
+		q.Set("insecure", "1")
+		q.Set("pinSHA256", hy2Pin(n.Hy2Cert))
+	}
 	if srv.Obfs != "" {
 		q.Set("obfs", "salamander")
 		q.Set("obfs-password", srv.Obfs)
@@ -195,7 +199,7 @@ func (s *Server) subServers() ([]subServer, error) {
 			variants = append(variants, subServer{Node: n, Name: serverName(n, suffix+" XHTTP"), XHTTPPath: n.XHTTPPath, FP: fp})
 		}
 		// Hysteria2 — только когда нода уже прислала свой сертификат (иначе клиенту нечем её проверить)
-		if h := routing.hysteria(); h != nil && n.Hy2Cert != "" && hy2ServerName(n.Hy2Cert) != "" {
+		if h := routing.hysteria(); h != nil && (n.Hy2TrustedName != "" || hy2ServerName(n.Hy2Cert) != "") {
 			variants = append(variants, subServer{Node: n, Name: serverName(n, suffix+" Hy2"), Hy2: true, Obfs: h.Obfs})
 		}
 		for _, v := range variants {

@@ -281,6 +281,7 @@ export const installBridgeWARP = async (node) => {
 }
 
 export const setWarpTransit = (node, enabled) => patchNode(node, { warp_transit: enabled })
+export const setHy2PublicTLS = (node, enabled) => patchNode(node, { hy2_public_tls: enabled })
 
 export const editSNI = async (node) => {
   const sni = prompt(t('sniPrompt'), node.SNI)

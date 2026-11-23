@@ -144,8 +144,11 @@ by hand from the node: `curl -so /dev/null --tlsv1.3 --http2 -w '%{http_version}
 **TLS fingerprint** (Routing) — which browser connections imitate: chrome (default), firefox,
 safari, ios, android, edge, random. If connections suddenly stall everywhere at once, try another.
 
-**Hysteria2.** The certificate is self-signed and issued by the node; apps check it by fingerprint,
-so no domain is needed and the server cannot be spoofed. **Salamander** makes packets look like
+**Hysteria2.** By default the node issues a self-signed certificate that clients verify by fingerprint.
+For a node with its own Caddy site, enable **Trusted Hysteria 2 certificate** on the node card to use
+Caddy's publicly trusted certificate. Wait for the agent to report **Trusted**, then refresh subscriptions
+or re-import standalone Hysteria 2 profiles. The agent picks up renewals automatically.
+**Salamander** makes packets look like
 noise but only works in apps that support it (Karing, Hiddify, v2rayNG, mihomo). On a "panel +
 bridge" server, open UDP 443 yourself if a firewall is on.
 

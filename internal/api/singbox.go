@@ -48,19 +48,19 @@ func singboxConfig(userID, title string, servers []subServer, withXHTTP bool) ([
 		}
 		n := srv.Node
 		if srv.Hy2 {
-			// sing-box проверяет самоподписанный сертификат, если передать его целиком
+			tls := obj{"enabled": true, "alpn": []string{"h3"}, "server_name": n.Hy2TrustedName}
+			if n.Hy2TrustedName == "" {
+				// sing-box проверяет самоподписанный сертификат, если передать его целиком.
+				tls["server_name"] = hy2ServerName(n.Hy2Cert)
+				tls["certificate"] = strings.Split(strings.TrimSpace(n.Hy2Cert), "\n")
+			}
 			hy := obj{
 				"type":        "hysteria2",
 				"tag":         srv.Name,
 				"server":      nodeAddress(n),
 				"server_port": protocol.HysteriaPort,
 				"password":    userID,
-				"tls": obj{
-					"enabled":     true,
-					"server_name": hy2ServerName(n.Hy2Cert),
-					"alpn":        []string{"h3"},
-					"certificate": strings.Split(strings.TrimSpace(n.Hy2Cert), "\n"),
-				},
+				"tls":         tls,
 			}
 			if srv.Obfs != "" {
 				hy["obfs"] = obj{"type": "salamander", "password": srv.Obfs}

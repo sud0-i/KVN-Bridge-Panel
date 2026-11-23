@@ -86,9 +86,12 @@ type Node struct {
 	// CDNDomain — домен ноды за CDN (Cloudflare и т.п.): «cdn.example.com» → IP ноды через CDN.
 	// Пусто — через CDN к ноде не подключаются.
 	CDNDomain string
-	// Hy2Cert — самоподписанный сертификат Hysteria2 (PEM), который прислал агент.
+	// Hy2Cert — сертификат Hysteria2 (PEM), который прислал агент.
 	// Публичный: клиенты проверяют по нему сервер. Пусто — нода ещё не прислала.
-	Hy2Cert string `json:"-"`
+	Hy2Cert        string `json:"-"`
+	Hy2PublicTLS   bool
+	Hy2TrustedName string
+	Hy2TLSError    string
 	// Что агент сообщает о себе: версии, свежесть геобаз, ошибка последнего обновления
 	AgentVersion string
 	XrayVersion  string

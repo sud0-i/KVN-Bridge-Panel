@@ -21,7 +21,9 @@ const (
 	WarpErrorHeader = "X-Node-Warp-Error"
 	// HysteriaCertHeader — самоподписанный сертификат Hysteria2 ноды (PEM в base64).
 	// Секрета в нём нет: по нему клиенты «пинят» сервер. Ключ остаётся на ноде.
-	HysteriaCertHeader = "X-Node-Hy2-Cert"
+	HysteriaCertHeader     = "X-Node-Hy2-Cert"
+	HysteriaTLSHeader      = "X-Node-Hy2-TLS"
+	HysteriaTLSErrorHeader = "X-Node-Hy2-TLS-Error"
 	// AgentVersionHeader — SHA-256 бинарника агента (по нему видно, обновился ли он)
 	AgentVersionHeader = "X-Node-Agent-Version"
 	// XrayVersionHeader — установленная версия Xray, например "26.3.27"
@@ -105,7 +107,9 @@ type Maintenance struct {
 // Hysteria — настройки входа Hysteria2 на ноде
 type Hysteria struct {
 	// Obfs — пароль маскировки salamander (пусто — без маскировки, выглядит как HTTP/3)
-	Obfs string `json:"obfs,omitempty"`
+	Obfs          string `json:"obfs,omitempty"`
+	PublicTLSName string `json:"public_tls_name,omitempty"`
+	CaddyInDocker bool   `json:"caddy_in_docker,omitempty"`
 	// CertFile/KeyFile заполняет агент: сертификат и ключ лежат только на ноде
 	CertFile string `json:"-"`
 	KeyFile  string `json:"-"`
