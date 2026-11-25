@@ -2,6 +2,10 @@ import { ref } from 'vue'
 
 export const messages = {
   ru: {
+    awg: { node: 'Выходная нода', device: 'Имя устройства', issue: 'Выдать профиль', copy: 'Копировать',
+      invite: 'Одноразовая ссылка на .conf, действует 15 минут', handshake: 'Рукопожатие',
+      revoke: 'Отозвать', revoked: 'Отозван', reload: 'Обновить',
+      noNodes: 'Нет подключённых выходных нод с настроенным интерфейсом AWG 3.1.' },
     site: {
       title: 'Публичная страница', edit: 'Редактировать сайт', heading: 'Заголовок', intro: 'Вступление',
       html: 'HTML страницы', template: 'Настроить встроенный шаблон',
@@ -339,6 +343,10 @@ export const messages = {
     warpNote: 'WARP ставится на выходные ноды при деплое. Если на ноде он не поднялся, этот трафик уходит с IP ноды — смотрите значок WARP во вкладке «Серверы».'
   },
   en: {
+    awg: { node: 'Exit node', device: 'Device name', issue: 'Issue profile', copy: 'Copy',
+      invite: 'Single-use .conf link, valid for 15 minutes', handshake: 'Last handshake',
+      revoke: 'Revoke', revoked: 'Revoked', reload: 'Refresh',
+      noNodes: 'No connected exit node has a configured AWG 3.1 interface.' },
     site: {
       title: 'Public page', edit: 'Edit site', heading: 'Title', intro: 'Introduction',
       html: 'Page HTML', template: 'Customize the built-in template',

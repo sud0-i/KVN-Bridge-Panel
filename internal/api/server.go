@@ -47,6 +47,7 @@ type Server struct {
 	provisionSelfSteal func(context.Context, string, string, string, string, string, runner.SSHRoute) error
 	provisionWARP      func(context.Context, string, string, runner.SSHRoute) error
 	restoreMu          sync.Mutex
+	awgIssueMu         sync.Mutex
 	warpJobs           sync.Map
 	selfStealJobs      sync.Map
 	now                func() time.Time
@@ -87,6 +88,9 @@ func (s *Server) Register(e *echo.Echo) {
 	api.GET("/ping", s.ping, admin)
 
 	api.GET("/users", s.listUsers, admin)
+	api.GET("/users/:id/awg", s.listAWGDevices, admin)
+	api.POST("/users/:id/awg", s.issueAWGDevice, admin, middleware.BodyLimit("4K"))
+	api.DELETE("/users/:id/awg/:device", s.revokeAWGDevice, admin)
 	api.POST("/users", s.createUser, admin)
 	api.POST("/users/import", s.importUsers, admin)
 	api.PATCH("/users/:id", s.updateUser, admin)
@@ -139,6 +143,7 @@ func (s *Server) Register(e *echo.Echo) {
 	agents := e.Group("/api")
 	agents.GET("/sync", s.sync, s.requireNode)
 	agents.POST("/stats", s.stats, s.requireNode)
+	agents.POST("/awg", s.syncAWG, s.requireNode, middleware.BodyLimit("1M"))
 	agents.GET("/agent/binary", s.agentBinaryHandler, s.requireNode)
 
 	// Публичная страница подписки
@@ -156,6 +161,8 @@ func (s *Server) Register(e *echo.Echo) {
 		ErrorHandler: func(c echo.Context, _ error) error { return notFound(c) },
 	})
 	e.GET("/sub/:token", s.subscription, subLimiter)
+	e.GET("/sub/:token/awg/:code", s.downloadAWG, subLimiter)
+	e.POST("/sub/:token/awg/:code", s.downloadAWG, subLimiter)
 }
 
 func jsonError(c echo.Context, code int, msg string) error {

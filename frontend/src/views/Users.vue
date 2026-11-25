@@ -2,11 +2,13 @@
 import { ref, computed } from 'vue'
 import Icon from '../ui/Icon.vue'
 import Seg from '../ui/Seg.vue'
+import AWGDevices from '../ui/AWGDevices.vue'
 import { t } from '../i18n'
 import { users, loadingUsers, used, fmtGB, fmtDate, isExpired, quotaPct, openUserModal, openShare, toggleUserStatus, deleteUser } from '../store'
 
 const search = ref('')
 const filter = ref('all')
+const awgUser = ref(null)
 
 const state = (u) => {
   if (u.Status !== 'active') return 'blocked'
@@ -81,6 +83,7 @@ const barClass = (u) => ((quotaPct(u) ?? 0) >= 100 ? 'bg-err' : nearLimit(u) ? '
             <td class="px-4 py-3 text-mute">{{ u.IPLimit || '∞' }}</td>
             <td class="px-4 py-3">
               <div class="flex gap-1.5 justify-end">
+                <button type="button" class="icon-btn" aria-label="AmneziaWG" title="AmneziaWG" @click="awgUser = u"><Icon name="globe" :size="16" /></button>
                 <button type="button" class="icon-btn" :aria-label="t('shareLink')" :title="t('shareLink')" @click="openShare(u)"><Icon name="link" :size="16" /></button>
                 <button type="button" class="icon-btn" :aria-label="u.Status === 'active' ? t('block') : t('unblock')" :title="u.Status === 'active' ? t('block') : t('unblock')" @click="toggleUserStatus(u)">
                   <Icon :name="u.Status === 'active' ? 'pause' : 'play'" :size="16" /></button>
@@ -108,6 +111,7 @@ const barClass = (u) => ((quotaPct(u) ?? 0) >= 100 ? 'bg-err' : nearLimit(u) ? '
           <div class="h-1.5 rounded-full bg-surf2"><div :class="['h-1.5 rounded-full', barClass(u)]" :style="{ width: barPct(u) + '%' }"></div></div>
         </div>
         <div class="flex gap-2">
+          <button type="button" class="icon-btn" aria-label="AmneziaWG" title="AmneziaWG" @click="awgUser = u"><Icon name="globe" :size="16" /></button>
           <button type="button" class="btn flex-1" @click="openShare(u)"><Icon name="link" :size="16" />{{ t('us.share') }}</button>
           <button type="button" class="icon-btn" :aria-label="u.Status === 'active' ? t('block') : t('unblock')" @click="toggleUserStatus(u)"><Icon :name="u.Status === 'active' ? 'pause' : 'play'" :size="16" /></button>
           <button type="button" class="icon-btn" :aria-label="t('editUser')" @click="openUserModal(u)"><Icon name="edit" :size="16" /></button>
@@ -115,5 +119,6 @@ const barClass = (u) => ((quotaPct(u) ?? 0) >= 100 ? 'bg-err' : nearLimit(u) ? '
         </div>
       </section>
     </div>
+    <AWGDevices v-if="awgUser" :user="awgUser" @close="awgUser = null" />
   </div>
 </template>

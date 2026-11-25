@@ -36,7 +36,7 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := gdb.AutoMigrate(&models.User{}, &models.Node{}, &models.Setting{}, &models.NotifyMessage{}, &models.LinkSample{}, &models.NodeMetric{}, &models.TerminalSession{}); err != nil {
+	if err := gdb.AutoMigrate(&models.User{}, &models.Node{}, &models.Setting{}, &models.NotifyMessage{}, &models.LinkSample{}, &models.NodeMetric{}, &models.TerminalSession{}, &models.AWGDevice{}); err != nil {
 		t.Fatal(err)
 	}
 

@@ -170,6 +170,12 @@ connections over one — sites open faster.
 
 ## Routing
 
+### AmneziaWG 3.1 pilot
+
+The pilot uses a direct IPv4 tunnel to an exit node. On that node, prepare a **dedicated host interface** with AmneziaWG 3.1 and the `awg` CLI, a private IPv4 subnet (for example, `10.90.0.1/24` on the interface), a UDP port distinct from Hysteria 2, and working IPv4 forwarding and outbound NAT. The interface must use a 3.1 configuration with `HeaderProtectionKey`. Keep its peer list empty in the boot configuration. The agent manages every peer on this dedicated interface.
+
+Set `AWG_INTERFACE` to that interface name in the environment of `vpn-agent.service`, then restart the agent. **Users → AmneziaWG** issues a one-time link to a device-specific `.conf` using the KVN subscription address. The agent applies new devices and revocations on sync. Device bytes are added to the same quota as Xray, and a revoked device keeps its traffic history. The pilot requires an existing AWG installation and forwards IPv4 traffic. The AWG cascade is a separate step.
+
 The Routing section:
 
 - **Country** (Russia, Iran, China) — ready-made rules for local sites. Their traffic can go through

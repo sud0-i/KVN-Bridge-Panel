@@ -29,6 +29,7 @@ func InitDB(dbPath string) {
 			SlowThreshold:             200 * time.Millisecond,
 			LogLevel:                  logger.Warn,
 			IgnoreRecordNotFoundError: true,
+			ParameterizedQueries:      true,
 			Colorful:                  false,
 		}),
 	})
@@ -37,7 +38,7 @@ func InitDB(dbPath string) {
 	}
 
 	// Магия GORM: он сам проверит структуры и создаст/обновит таблицы
-	err = DB.AutoMigrate(&models.User{}, &models.Node{}, &models.Setting{}, &models.NotifyMessage{}, &models.LinkSample{}, &models.NodeMetric{}, &models.TerminalSession{})
+	err = DB.AutoMigrate(&models.User{}, &models.Node{}, &models.Setting{}, &models.NotifyMessage{}, &models.LinkSample{}, &models.NodeMetric{}, &models.TerminalSession{}, &models.AWGDevice{})
 	if err != nil {
 		log.Fatalf("❌ Ошибка миграции БД: %v", err)
 	}

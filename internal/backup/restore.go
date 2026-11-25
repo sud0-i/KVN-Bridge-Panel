@@ -29,6 +29,7 @@ var restoreTables = []restoreTable{
 	{"link_samples", nil},
 	{"node_metrics", nil},
 	{"terminal_sessions", nil},
+	{"awg_devices", nil},
 }
 
 // Restore checks the incoming SQLite file, saves the current database, then
@@ -113,7 +114,7 @@ func Restore(ctx context.Context, database *gorm.DB, path, safetyPath string, no
 				}
 			}
 			// A queued reboot or notification from the backup should not run again.
-			if err := tx.Exec("UPDATE nodes SET pending_action = '', pending_at = NULL").Error; err != nil {
+			if err := tx.Exec("UPDATE nodes SET pending_action = '', pending_at = NULL, awg_seen = NULL").Error; err != nil {
 				return err
 			}
 			if err := tx.Exec("DELETE FROM notify_messages WHERE sent_at IS NULL AND COALESCE(failed, 0) = 0").Error; err != nil {

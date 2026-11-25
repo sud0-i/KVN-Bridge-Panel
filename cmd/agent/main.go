@@ -43,6 +43,7 @@ type agent struct {
 	// panelChannel — канал обновлений панели (stable / beta), для моста на сервере мастера
 	panelChannel string
 	nodeIP       string
+	awgInterface string
 
 	// ssh — состояние SSH на ноде (ключи панели, вход по паролю)
 	ssh *sshState
@@ -91,16 +92,17 @@ func main() {
 	}
 
 	a := &agent{
-		masterURL:  strings.TrimRight(os.Getenv("MASTER_URL"), "/"),
-		token:      os.Getenv("NODE_TOKEN"),
-		privKey:    os.Getenv("PRIVATE_KEY"),
-		configPath: envOr("XRAY_CONFIG", "/usr/local/etc/xray/config.json"),
-		xrayBin:    envOr("XRAY_BIN", "xray"),
-		http:       &http.Client{Timeout: 15 * time.Second},
-		pending:    map[string]*protocol.UserTraffic{},
-		maint:      newMaintainer(),
-		links:      newLinkMonitor(),
-		metrics:    newMetricsSampler(),
+		masterURL:    strings.TrimRight(os.Getenv("MASTER_URL"), "/"),
+		token:        os.Getenv("NODE_TOKEN"),
+		privKey:      os.Getenv("PRIVATE_KEY"),
+		configPath:   envOr("XRAY_CONFIG", "/usr/local/etc/xray/config.json"),
+		xrayBin:      envOr("XRAY_BIN", "xray"),
+		http:         &http.Client{Timeout: 15 * time.Second},
+		pending:      map[string]*protocol.UserTraffic{},
+		maint:        newMaintainer(),
+		links:        newLinkMonitor(),
+		metrics:      newMetricsSampler(),
+		awgInterface: strings.TrimSpace(os.Getenv("AWG_INTERFACE")),
 	}
 	if a.masterURL == "" || a.token == "" || a.privKey == "" {
 		log.Fatal("❌ Ошибка: MASTER_URL, NODE_TOKEN или PRIVATE_KEY не заданы!")
@@ -211,6 +213,9 @@ func (a *agent) sync() {
 	// Обновления — после применения конфига и даже если он не применился:
 	// новая версия агента или Xray может как раз это исправить
 	defer a.maintain(data.Maintenance)
+	if data.Role == protocol.RoleExit && a.awgInterface != "" {
+		defer a.syncAWG()
+	}
 	a.links.setExits(data.Exits)
 	if data.NodeIP != "" {
 		a.nodeIP = data.NodeIP

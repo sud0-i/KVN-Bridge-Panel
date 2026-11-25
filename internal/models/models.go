@@ -92,6 +92,8 @@ type Node struct {
 	Hy2PublicTLS   bool
 	Hy2TrustedName string
 	Hy2TLSError    string
+	AWGProfile     string `json:"-"`
+	AWGSeen        time.Time
 	// Что агент сообщает о себе: версии, свежесть геобаз, ошибка последнего обновления
 	AgentVersion string
 	XrayVersion  string
