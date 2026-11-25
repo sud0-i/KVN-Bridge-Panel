@@ -59,7 +59,7 @@ func (s *Server) syncAWG(c echo.Context) error {
 	desired := make([]protocol.AWGPeer, 0)
 	now := s.now()
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(node).Updates(map[string]any{"awg_profile": string(profile), "awg_seen": now}).Error; err != nil {
+		if err := tx.Model(node).Updates(map[string]any{"awg_profile": string(profile), "awg_seen": now, "awg_port": report.Port}).Error; err != nil {
 			return err
 		}
 		var devices []models.AWGDevice

@@ -280,6 +280,11 @@ export const installBridgeWARP = async (node) => {
   if (!res.ok) throw new Error(await readError(res))
 }
 
+export const installNodeAWG = async (node) => {
+  const res = await apiCall(`api/nodes/${encodeURIComponent(node.IP)}/install-awg`, { method: 'POST' })
+  if (!res.ok) throw new Error(await readError(res))
+}
+
 export const setWarpTransit = (node, enabled) => patchNode(node, { warp_transit: enabled })
 export const setHy2PublicTLS = (node, enabled) => patchNode(node, { hy2_public_tls: enabled })
 

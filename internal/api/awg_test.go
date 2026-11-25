@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -9,7 +10,34 @@ import (
 
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/models"
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/protocol"
+	"github.com/sud0-i/KVN-Bridge-Panel/internal/runner"
 )
+
+func TestInstallAWGUsesExitNodeSSH(t *testing.T) {
+	ev := newEnv(t)
+	const ip = "203.0.113.21"
+	token := ev.addNode(ip, protocol.RoleExit)
+	ev.syncAs(token)
+	path := "/api/nodes/" + ip + "/install-awg"
+	admin := ev.adminToken()
+	if rec := ev.do("POST", path, "", admin); rec.Code != http.StatusBadRequest {
+		t.Fatalf("installation without a panel key: %d", rec.Code)
+	}
+	if err := ev.db.Model(&models.Node{}).Where("ip = ?", ip).Update("ssh_state", "keys").Error; err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	ev.s.provisionAWG = func(_ context.Context, target, key string, route runner.SSHRoute) error {
+		called = true
+		if target != ip || key != ev.s.sshKey.path || route.PortString() != "22" {
+			t.Fatalf("wrong installation target: %s, port %s", target, route.PortString())
+		}
+		return nil
+	}
+	if rec := ev.do("POST", path, "", admin); rec.Code != http.StatusNoContent || !called {
+		t.Fatalf("install: %d %s", rec.Code, rec.Body)
+	}
+}
 
 func TestAWGProfileAndSharedQuota(t *testing.T) {
 	ev := newEnv(t)

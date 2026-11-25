@@ -18,10 +18,28 @@ import (
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/protocol"
 )
 
+const managedAWGInterface = "kvnawg0"
+
+func (a *agent) awgInterfaceName() string {
+	if a.awgInterface != "" {
+		return a.awgInterface
+	}
+	if marker, err := os.ReadFile("/etc/kvn-awg/managed"); err == nil && strings.TrimSpace(string(marker)) == managedAWGInterface {
+		return managedAWGInterface
+	}
+	return ""
+}
+
 func awgCommand(args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "awg", args...).Output()
+	binary := "awg"
+	if len(args) > 1 && args[1] == managedAWGInterface {
+		if _, err := os.Stat("/usr/local/lib/kvn-awg/awg"); err == nil {
+			binary = "/usr/local/lib/kvn-awg/awg"
+		}
+	}
+	out, err := exec.CommandContext(ctx, binary, args...).Output()
 	if err != nil {
 		return "", fmt.Errorf("awg %s: %w", args[0], err)
 	}
@@ -127,14 +145,14 @@ func parseAWGCounters(transfers, handshakes string) ([]protocol.AWGCounter, erro
 	return out, nil
 }
 
-func (a *agent) syncAWG() {
-	if err := a.updateAWG(); err != nil {
+func (a *agent) syncAWG(iface string) {
+	if err := a.updateAWG(iface); err != nil {
 		log.Printf("⚠️ AWG: %v", err)
 	}
 }
 
-func (a *agent) updateAWG() error {
-	status, err := awgStatus(a.awgInterface)
+func (a *agent) updateAWG(iface string) error {
+	status, err := awgStatus(iface)
 	if err != nil {
 		return err
 	}
@@ -164,7 +182,7 @@ func (a *agent) updateAWG() error {
 	for _, p := range status.Peers {
 		current[p.PublicKey] = true
 	}
-	args := []string{"set", a.awgInterface}
+	args := []string{"set", iface}
 	pool, _ := netip.ParsePrefix(status.Address)
 	for _, p := range desired {
 		ip, err := netip.ParseAddr(p.IP)

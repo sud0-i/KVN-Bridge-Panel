@@ -46,8 +46,10 @@ type Server struct {
 	deploy             func(runner.DeployParams)
 	provisionSelfSteal func(context.Context, string, string, string, string, string, runner.SSHRoute) error
 	provisionWARP      func(context.Context, string, string, runner.SSHRoute) error
+	provisionAWG       func(context.Context, string, string, runner.SSHRoute) error
 	restoreMu          sync.Mutex
 	awgIssueMu         sync.Mutex
+	awgJobs            sync.Map
 	warpJobs           sync.Map
 	selfStealJobs      sync.Map
 	now                func() time.Time
@@ -66,7 +68,8 @@ func New(cfg Config, db *gorm.DB) *Server {
 		keyPath = filepath.Join(filepath.Dir(envOr("DB_PATH", "data/db.sqlite")), "ssh", "id_ed25519")
 	}
 	return &Server{cfg: cfg, db: db, deploy: func(p runner.DeployParams) { go runner.DeployNode(p) }, now: time.Now,
-		agentBin: &agentBinary{path: bin}, sshKey: &masterKey{path: keyPath}, provisionSelfSteal: runner.ProvisionSelfSteal, provisionWARP: runner.ProvisionWARP}
+		agentBin: &agentBinary{path: bin}, sshKey: &masterKey{path: keyPath}, provisionSelfSteal: runner.ProvisionSelfSteal,
+		provisionWARP: runner.ProvisionWARP, provisionAWG: runner.ProvisionAWG}
 }
 
 // Register вешает все роуты на Echo
@@ -105,6 +108,7 @@ func (s *Server) Register(e *echo.Echo) {
 	api.PATCH("/nodes/:ip", s.updateNode, admin)
 	api.POST("/nodes/:ip/self-steal", s.enableSelfSteal, admin)
 	api.POST("/nodes/:ip/install-warp", s.installBridgeWARP, admin)
+	api.POST("/nodes/:ip/install-awg", s.installAWG, admin)
 	api.POST("/nodes/:ip/redeploy", s.redeployNode, admin)
 	api.DELETE("/nodes/:ip", s.deleteNode, admin)
 

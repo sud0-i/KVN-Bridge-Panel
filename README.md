@@ -172,9 +172,9 @@ connections over one — sites open faster.
 
 ### AmneziaWG 3.1 pilot
 
-The pilot uses a direct IPv4 tunnel to an exit node. On that node, prepare a **dedicated host interface** with AmneziaWG 3.1 and the `awg` CLI, a private IPv4 subnet (for example, `10.90.0.1/24` on the interface), a UDP port distinct from Hysteria 2, and working IPv4 forwarding and outbound NAT. The interface must use a 3.1 configuration with `HeaderProtectionKey`. Keep its peer list empty in the boot configuration. The agent manages every peer on this dedicated interface.
+The pilot uses a direct IPv4 tunnel to an exit node. On an online Debian or Ubuntu x86-64 exit node with the panel SSH key and `/dev/net/tun`, choose **Install AmneziaWG** on the node card. The panel deploys the bundled tools, creates the dedicated `kvnawg0` interface with fresh keys, selects an available UDP port and private subnet, and configures forwarding and outbound NAT for it. If your provider has a separate firewall, allow the selected UDP port there as well.
 
-Set `AWG_INTERFACE` to that interface name in the environment of `vpn-agent.service`, then restart the agent. **Users → AmneziaWG** issues a one-time link to a device-specific `.conf` using the KVN subscription address. The agent applies new devices and revocations on sync. Device bytes are added to the same quota as Xray, and a revoked device keeps its traffic history. The pilot requires an existing AWG installation and forwards IPv4 traffic. The AWG cascade is a separate step.
+When the card shows **Ready**, use **Users → AmneziaWG** to issue a one-time link to a device-specific `.conf`. The agent applies new devices and revocations on sync. Device bytes are added to the same quota as Xray, and a revoked device keeps its traffic history. An existing dedicated AWG 3.1 interface can still be managed by setting `AWG_INTERFACE` in the agent environment. The AWG cascade is a separate step.
 
 The Routing section:
 

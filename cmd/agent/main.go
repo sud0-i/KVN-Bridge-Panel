@@ -213,8 +213,10 @@ func (a *agent) sync() {
 	// Обновления — после применения конфига и даже если он не применился:
 	// новая версия агента или Xray может как раз это исправить
 	defer a.maintain(data.Maintenance)
-	if data.Role == protocol.RoleExit && a.awgInterface != "" {
-		defer a.syncAWG()
+	if data.Role == protocol.RoleExit {
+		if iface := a.awgInterfaceName(); iface != "" {
+			defer a.syncAWG(iface)
+		}
 	}
 	a.links.setExits(data.Exits)
 	if data.NodeIP != "" {

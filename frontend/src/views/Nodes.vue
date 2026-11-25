@@ -11,7 +11,7 @@ import { ref, computed, onBeforeUnmount } from 'vue'
 import { t } from '../i18n'
 import { nodes, loadingNodes, routing, agentSHA, agentPending, xrayPending, nodeName, ago, fmtDateTime, bridges, exits,
   openDeploy, openRedeploy, editSNI, editLabel, editCDN, deleteNode, links, linksRange, fetchLinks,
-  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes, isLocalBridge, enableSelfSteal, setWarpTransit, installBridgeWARP, setHy2PublicTLS } from '../store'
+  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes, isLocalBridge, enableSelfSteal, setWarpTransit, installBridgeWARP, setHy2PublicTLS, installNodeAWG } from '../store'
 
 const emit = defineEmits(['go'])
 
@@ -69,6 +69,21 @@ const publicSiteFor = ref(null)
 const actionList = (n) => ['restart-xray', ...(n.MieruVersion ? ['restart-mieru'] : []), 'restart-agent', 'reboot']
 const runAction = async (n, a) => { actionsFor.value = null; await nodeAction(n, a) }
 const warpInstall = ref({})
+const awgInstall = ref({})
+const awgReady = (n) => Date.now() - Date.parse(n.AWGSeen) < 180000
+async function installAWG(node) {
+  awgInstall.value[node.IP] = { busy: true, error: '', done: false }
+  const state = awgInstall.value[node.IP]
+  try {
+    await installNodeAWG(node)
+    state.done = true
+    await fetchNodes()
+  } catch (error) {
+    state.error = error.message
+  } finally {
+    state.busy = false
+  }
+}
 async function repairWarp(node) {
   warpInstall.value[node.IP] = { busy: true, error: '', done: false }
   const state = warpInstall.value[node.IP]
@@ -248,6 +263,19 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
                 <span :class="['text-[13px]', n.SSHKeysOnly ? 'text-ok' : '']">{{ n.SSHKeysOnly ? t('tm.sshKeysOnly') : t('tm.sshKeys') }}</span>
                 <button type="button" class="text-[13px] text-acc hover:text-acc-hover" @click="setKeysOnly(n, !n.SSHKeysOnly)">{{ n.SSHKeysOnly ? t('tm.keysOnlyOff') : t('tm.keysOnlyOn') }}</button>
               </template>
+            </dd>
+          </div>
+          <div v-if="n.Type === 'exit' && (hasPanelKey(n) || awgReady(n))" class="flex justify-between gap-4 py-2 border-t border-line">
+            <dt class="text-mute">AmneziaWG 3.1</dt>
+            <dd class="text-right">
+              <span v-if="awgReady(n)" class="text-sm text-ok">{{ t('awg.ready') }}<template v-if="n.AWGPort"> · UDP {{ n.AWGPort }}</template></span>
+              <span v-else-if="awgInstall[n.IP]?.busy" role="status" class="text-sm text-mute">{{ t('awg.installing') }}</span>
+              <template v-else-if="n.IsOnline">
+                <button type="button" class="text-sm text-acc hover:text-acc-hover" @click="installAWG(n)">{{ t('awg.install') }}</button>
+                <p v-if="awgInstall[n.IP]?.done" class="hint">{{ t('awg.wait') }}</p>
+              </template>
+              <span v-else>—</span>
+              <p v-if="awgInstall[n.IP]?.error" role="alert" class="text-xs text-err">{{ awgInstall[n.IP].error }}</p>
             </dd>
           </div>
           <div v-if="routing?.hysteria && hy2Available(n)" class="flex justify-between gap-4 py-2 border-t border-line">

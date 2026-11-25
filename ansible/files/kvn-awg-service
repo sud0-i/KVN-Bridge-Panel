@@ -1,0 +1,98 @@
+#!/bin/sh
+set -eu
+
+config=/etc/kvn-awg/kvnawg0.conf
+awg=/usr/local/lib/kvn-awg/awg
+
+case "${1:-}" in
+init)
+    [ -c /dev/net/tun ] || { echo '/dev/net/tun is unavailable' >&2; exit 1; }
+    [ ! -e "$config" ] || exit 0
+    if ip link show dev kvnawg0 >/dev/null 2>&1 || nft list table ip kvn_awg >/dev/null 2>&1; then
+        echo 'The interface kvnawg0 or nft table kvn_awg is already in use' >&2
+        exit 1
+    fi
+    address=$(/usr/bin/python3 - <<'PY'
+import ipaddress
+import json
+import subprocess
+
+routes = json.loads(subprocess.check_output(["ip", "-j", "-4", "route", "show", "table", "all"]))
+used = [
+    ipaddress.ip_network(route["dst"], strict=False)
+    for route in routes
+    if "dst" in route and route["dst"] != "default"
+]
+for addr in ("10.67.41.1/24", "10.67.42.1/24", "172.29.41.1/24", "192.168.249.1/24"):
+    if not any(ipaddress.ip_interface(addr).network.overlaps(other) for other in used):
+        print(addr)
+        break
+else:
+    raise SystemExit("No free private IPv4 subnet for AWG")
+PY
+    )
+    port=
+    for candidate in 51820 51821 51822 51823; do
+        listeners=$(ss -H -lun "sport = :$candidate")
+        if [ -z "$listeners" ]; then port=$candidate; break; fi
+    done
+    [ -n "$port" ] || { echo 'No free UDP port for AWG' >&2; exit 1; }
+    private=$("$awg" genkey)
+    header=$("$awg" genpsk)
+    umask 077
+    tmp=$(mktemp "${config}.XXXXXX")
+    trap 'rm -f "$tmp"' EXIT HUP INT TERM
+    cat > "$tmp" <<EOF
+[Interface]
+Address = $address
+ListenPort = $port
+PrivateKey = $private
+HeaderProtectionKey = $header
+S1 = 16
+S2 = 16
+S3 = 16
+S4 = 16
+H1 = 1
+H2 = 2
+H3 = 3
+H4 = 4
+RandomTrailers = on
+EOF
+    mv "$tmp" "$config"
+    ;;
+up)
+    for attempt in 1 2 3 4 5 6 7 8 9 10; do
+        if "$awg" show kvnawg0 listen-port >/dev/null 2>&1; then break; fi
+        sleep 1
+    done
+    address=$(sed -n 's/^Address = //p' "$config")
+    wan=$(ip -4 route get 1.1.1.1 | awk '{for (i=1;i<NF;i++) if ($i=="dev") {print $(i+1); exit}}')
+    case "$wan" in ''|kvnawg0|*[!a-zA-Z0-9_.:-]*) echo 'No usable IPv4 uplink for AWG' >&2; exit 1;; esac
+    ip address replace "$address" dev kvnawg0
+    sed '/^Address = /d' "$config" | "$awg" setconf kvnawg0 /dev/stdin
+    ip link set dev kvnawg0 mtu 1376 up
+    # Isolate only this tunnel; it does not expose services on the VPS or private uplink networks.
+    nft -f - <<EOF
+table ip kvn_awg {
+    chain input {
+        type filter hook input priority -5; policy accept;
+        iifname "kvnawg0" drop
+    }
+    chain forward {
+        type filter hook forward priority -5; policy accept;
+        iifname "kvnawg0" oifname != "$wan" drop
+        iifname "kvnawg0" ip daddr { 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4 } drop
+        oifname "kvnawg0" ct state != { established, related } drop
+    }
+    chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+        iifname "kvnawg0" oifname "$wan" masquerade
+    }
+}
+EOF
+    ;;
+down)
+    if nft list table ip kvn_awg >/dev/null 2>&1; then nft delete table ip kvn_awg; fi
+    ;;
+*) exit 2 ;;
+esac

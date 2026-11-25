@@ -94,6 +94,7 @@ type Node struct {
 	Hy2TLSError    string
 	AWGProfile     string `json:"-"`
 	AWGSeen        time.Time
+	AWGPort        uint16
 	// Что агент сообщает о себе: версии, свежесть геобаз, ошибка последнего обновления
 	AgentVersion string
 	XrayVersion  string

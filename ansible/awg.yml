@@ -1,0 +1,110 @@
+---
+- name: Установка зависимостей AmneziaWG
+  apt:
+    name: [iproute2, nftables, procps, ufw]
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+    policy_rc_d: 101
+
+- name: Каталоги AmneziaWG
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: /etc/kvn-awg, mode: "0700"}
+    - {path: /usr/local/lib/kvn-awg, mode: "0755"}
+
+- name: Доставка AmneziaWG из образа панели
+  copy:
+    src: "{{ awg_binaries }}/{{ item }}"
+    dest: "/usr/local/lib/kvn-awg/{{ item }}"
+    mode: "0755"
+  loop: [awg, amneziawg-go]
+  register: awg_bins
+
+- name: Скрипт службы AmneziaWG
+  copy:
+    src: files/kvn-awg-service
+    dest: /usr/local/lib/kvn-awg/service
+    mode: "0755"
+    validate: /bin/sh -n %s
+  register: awg_script
+
+- name: Сохранение сетевых настроек и ключей AWG
+  command: /usr/local/lib/kvn-awg/service init
+  args:
+    creates: /etc/kvn-awg/kvnawg0.conf
+
+- name: Чтение порта AWG
+  command: "sed -n 's/^ListenPort = //p' /etc/kvn-awg/kvnawg0.conf"
+  register: awg_port
+  changed_when: false
+
+- name: Проверка порта AWG
+  assert:
+    that:
+      - awg_port.stdout | int > 0
+      - awg_port.stdout | int <= 65535
+
+- name: Разрешение UDP-порта AWG
+  ufw:
+    rule: allow
+    port: "{{ awg_port.stdout }}"
+    proto: udp
+
+- name: Разрешение маршрутизации из интерфейса AWG в UFW
+  ufw:
+    rule: allow
+    route: yes
+    interface_in: kvnawg0
+
+- name: Сохранение настройки пересылки IPv4
+  copy:
+    dest: /etc/sysctl.d/99-kvn-awg.conf
+    content: "net.ipv4.ip_forward = 1\n"
+    mode: "0644"
+
+- name: Включение пересылки IPv4
+  command: sysctl -w net.ipv4.ip_forward=1
+  changed_when: false
+
+- name: Служба AmneziaWG 3.1
+  copy:
+    dest: /etc/systemd/system/kvn-awg.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=KVN AmneziaWG
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      ExecStart=/usr/local/lib/kvn-awg/amneziawg-go -f kvnawg0
+      ExecStartPost=/usr/local/lib/kvn-awg/service up
+      ExecStopPost=/usr/local/lib/kvn-awg/service down
+      Restart=on-failure
+
+      [Install]
+      WantedBy=multi-user.target
+  register: awg_unit
+
+- name: Запуск AmneziaWG
+  systemd:
+    name: kvn-awg
+    daemon_reload: "{{ awg_unit.changed }}"
+    enabled: yes
+    state: "{{ 'restarted' if awg_unit.changed or awg_bins.changed or awg_script.changed else 'started' }}"
+
+- name: Проверка UDP-порта и UAPI интерфейса
+  command: /usr/local/lib/kvn-awg/awg show kvnawg0 listen-port
+  register: awg_listen
+  changed_when: false
+  failed_when: awg_listen.rc != 0 or awg_listen.stdout != awg_port.stdout
+
+- name: Передача интерфейса агенту панели
+  copy:
+    dest: /etc/kvn-awg/managed
+    content: "kvnawg0\n"
+    mode: "0644"

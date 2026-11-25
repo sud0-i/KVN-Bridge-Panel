@@ -113,6 +113,23 @@ func ProvisionWARP(ctx context.Context, ip, keyFile string, route SSHRoute) erro
 	}, "--tags", "install-warp")
 }
 
+func ProvisionAWG(ctx context.Context, ip, keyFile string, route SSHRoute) error {
+	dir, err := absPath(envOr("AWG_BINARIES", "build/awg_linux_amd64"))
+	if err != nil {
+		return err
+	}
+	for _, name := range []string{"awg", "amneziawg-go"} {
+		if info, err := os.Stat(filepath.Join(dir, name)); err != nil || !info.Mode().IsRegular() {
+			return fmt.Errorf("не найден бинарник %s для AWG в образе панели", name)
+		}
+	}
+	return runPlaybook(ctx, ip, route, map[string]string{
+		"ansible_user":                 "root",
+		"ansible_ssh_private_key_file": keyFile,
+		"awg_binaries":                 dir,
+	}, "--tags", "install-awg")
+}
+
 func runPlaybook(ctx context.Context, ip string, route SSHRoute, v map[string]string, options ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()

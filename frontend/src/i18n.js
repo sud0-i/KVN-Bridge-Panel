@@ -5,6 +5,8 @@ export const messages = {
     awg: { node: 'Выходная нода', device: 'Имя устройства', issue: 'Выдать профиль', copy: 'Копировать',
       invite: 'Одноразовая ссылка на .conf, действует 15 минут', handshake: 'Рукопожатие',
       revoke: 'Отозвать', revoked: 'Отозван', reload: 'Обновить',
+      install: 'Установить AmneziaWG', installing: 'Установка…', ready: 'Готов',
+      wait: 'Служба запущена. Ждём синхронизацию агента.',
       noNodes: 'Нет подключённых выходных нод с настроенным интерфейсом AWG 3.1.' },
     site: {
       title: 'Публичная страница', edit: 'Редактировать сайт', heading: 'Заголовок', intro: 'Вступление',
@@ -346,6 +348,8 @@ export const messages = {
     awg: { node: 'Exit node', device: 'Device name', issue: 'Issue profile', copy: 'Copy',
       invite: 'Single-use .conf link, valid for 15 minutes', handshake: 'Last handshake',
       revoke: 'Revoke', revoked: 'Revoked', reload: 'Refresh',
+      install: 'Install AmneziaWG', installing: 'Installing…', ready: 'Ready',
+      wait: 'Service started. Waiting for the agent to sync.',
       noNodes: 'No connected exit node has a configured AWG 3.1 interface.' },
     site: {
       title: 'Public page', edit: 'Edit site', heading: 'Title', intro: 'Introduction',
