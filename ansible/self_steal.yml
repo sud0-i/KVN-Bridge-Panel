@@ -80,7 +80,7 @@
               handle @missing {
                   header Content-Security-Policy "sandbox; default-src 'none'; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' data: https:; base-uri 'none'; form-action 'none'"
                   header Cache-Control no-store
-                  rewrite /{err.status_code}.html
+                  rewrite * /{err.status_code}.html
                   file_server
               }
               respond "{err.status_text}" {err.status_code}
