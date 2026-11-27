@@ -358,7 +358,7 @@ export const messages = {
       title: 'Public page', edit: 'Edit site', heading: 'Title', intro: 'Introduction',
       html: 'Page HTML', template: 'Customize the built-in template',
       archive: 'Static site ZIP', archiveSelected: 'ZIP selected', removeArchive: 'Remove ZIP',
-      archiveSize: 'The Choose a non-empty ZIP up to 512 KiB.',
+      archiveSize: 'Choose a non-empty ZIP up to 512 KiB.',
       archiveHint: 'Up to 512 KiB. Put index.html at the root and use relative paths to CSS, images and fonts. favicon.ico and 404.html are optional.',
       htmlHint: 'Paste the HTML, up to 128 KiB. CSS and images are supported. JavaScript and forms are disabled. An empty field uses the template.',
       theme: 'Theme', paper: 'Light', slate: 'Dark', preview: 'Preview',

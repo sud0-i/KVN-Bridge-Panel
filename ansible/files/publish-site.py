@@ -48,4 +48,5 @@ def publish(root, encoded):
 
 
 if __name__ == "__main__":
+    os.umask(0o022)
     publish(Path("/var/www/kvn-site-archive"), Path(sys.argv[1]).read_bytes())

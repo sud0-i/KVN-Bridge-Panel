@@ -40,3 +40,37 @@ jobs:
       - run: bash -n install.sh
       - run: shellcheck -S warning install.sh scripts/test-install.sh
       - run: scripts/test-install.sh
+      - name: Publish a static site archive
+        run: |
+          python3 - <<'PY'
+          import base64
+          import io
+          from pathlib import Path
+          import runpy
+          import tempfile
+          import zipfile
+
+          publish = runpy.run_path("ansible/files/publish-site.py")["publish"]
+
+          def package(files):
+              data = io.BytesIO()
+              with zipfile.ZipFile(data, "w", zipfile.ZIP_DEFLATED) as archive:
+                  for name, content in files.items():
+                      archive.writestr(name, content)
+              return base64.b64encode(data.getvalue())
+
+          with tempfile.TemporaryDirectory() as tmp:
+              site = Path(tmp) / "site"
+              publish(site, package({"index.html": "home", "assets/site.css": "body {}"}))
+              assert (site / "current/assets/site.css").read_text() == "body {}"
+              try:
+                  publish(site, package({"index.html": "bad", "../escape.html": "bad"}))
+              except ValueError:
+                  pass
+              else:
+                  raise AssertionError("Accepted parent path")
+              assert (site / "current/index.html").read_text() == "home"
+              publish(site, package({"index.html": "updated"}))
+              assert (site / "current/index.html").read_text() == "updated"
+              assert not (site / "current/assets/site.css").exists()
+          PY
