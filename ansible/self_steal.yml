@@ -77,7 +77,7 @@
           }
           import public_site
       }
-      {% if self_steal_cdn_domain and self_steal_cdn_domain != self_steal_domain %}
+      {% if self_steal_cdn_domain != "" and self_steal_cdn_domain != self_steal_domain %}
 
       http://{{ self_steal_cdn_domain }} {
           redir https://{{ self_steal_cdn_domain }}{uri} 308
@@ -169,7 +169,7 @@
   retries: 10
   delay: 2
   changed_when: false
-  when: self_steal_cdn_domain and self_steal_cdn_domain != self_steal_domain
+  when: self_steal_cdn_domain != "" and self_steal_cdn_domain != self_steal_domain
 
 - name: Публикация страницы
   copy:
