@@ -54,8 +54,8 @@ func (s *Server) enableSelfSteal(c echo.Context) error {
 	// Завершаем операцию даже если администратор закрыл окно во время выпуска сертификата.
 	refreshing := node.SelfStealDomain == domain
 	node.SelfStealDomain = domain
-	siteHTML := s.publicSiteHTML(node)
-	if err := s.provisionSelfSteal(context.WithoutCancel(c.Request().Context()), ip, domain, node.CDNDomain, siteHTML, s.sshKey.path, route); err != nil {
+	site := s.publicSiteSettings(node)
+	if err := s.provisionSelfSteal(context.WithoutCancel(c.Request().Context()), ip, domain, node.CDNDomain, site, s.sshKey.path, route); err != nil {
 		return jsonError(c, http.StatusBadGateway, "Не удалось настроить сайт: "+err.Error())
 	}
 	if refreshing {

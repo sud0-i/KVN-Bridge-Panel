@@ -8,6 +8,7 @@ import (
 
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/models"
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/runner"
+	"github.com/sud0-i/KVN-Bridge-Panel/internal/website"
 )
 
 func TestEnableSelfStealPreservesKeysAndWaitsForTLS(t *testing.T) {
@@ -22,7 +23,7 @@ func TestEnableSelfStealPreservesKeysAndWaitsForTLS(t *testing.T) {
 	auth := ev.adminToken()
 	path := "/api/nodes/" + ip + "/self-steal"
 	body := `{"domain":"Site.Example.com"}`
-	ev.s.provisionSelfSteal = func(_ context.Context, target, name, cdn, page, key string, _ runner.SSHRoute) error {
+	ev.s.provisionSelfSteal = func(_ context.Context, target, name, cdn string, _ website.Settings, key string, _ runner.SSHRoute) error {
 		if target != ip || name != domain || key != ev.s.sshKey.path {
 			t.Fatalf("provisioning got %q %q %q", target, name, key)
 		}
@@ -35,7 +36,9 @@ func TestEnableSelfStealPreservesKeysAndWaitsForTLS(t *testing.T) {
 		t.Fatalf("failed provisioning changed REALITY: %+v", got)
 	}
 
-	ev.s.provisionSelfSteal = func(context.Context, string, string, string, string, string, runner.SSHRoute) error { return nil }
+	ev.s.provisionSelfSteal = func(context.Context, string, string, string, website.Settings, string, runner.SSHRoute) error {
+		return nil
+	}
 	if rec := ev.do("POST", path, body, auth); rec.Code != http.StatusNoContent {
 		t.Fatalf("enable self-steal: %d %s", rec.Code, rec.Body)
 	}
@@ -49,7 +52,7 @@ func TestEnableSelfStealPreservesKeysAndWaitsForTLS(t *testing.T) {
 		t.Fatal(err)
 	}
 	called := false
-	ev.s.provisionSelfSteal = func(_ context.Context, target, name, alias, page, key string, _ runner.SSHRoute) error {
+	ev.s.provisionSelfSteal = func(_ context.Context, target, name, alias string, _ website.Settings, key string, _ runner.SSHRoute) error {
 		called = true
 		if target != ip || name != domain || alias != cdn {
 			t.Fatalf("refresh got %q %q %q", target, name, alias)

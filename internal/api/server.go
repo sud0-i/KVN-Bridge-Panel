@@ -11,6 +11,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/runner"
+	"github.com/sud0-i/KVN-Bridge-Panel/internal/website"
 	"golang.org/x/time/rate"
 	"gorm.io/gorm"
 )
@@ -44,7 +45,7 @@ type Server struct {
 	db       *gorm.DB
 	// deploy запускает деплой в фоне; вынесен в поле, чтобы в тестах не запускать настоящий Ansible
 	deploy             func(runner.DeployParams)
-	provisionSelfSteal func(context.Context, string, string, string, string, string, runner.SSHRoute) error
+	provisionSelfSteal func(context.Context, string, string, string, website.Settings, string, runner.SSHRoute) error
 	provisionWARP      func(context.Context, string, string, runner.SSHRoute) error
 	provisionAWG       func(context.Context, string, string, runner.SSHRoute) error
 	restoreMu          sync.Mutex
@@ -52,6 +53,10 @@ type Server struct {
 	awgJobs            sync.Map
 	warpJobs           sync.Map
 	selfStealJobs      sync.Map
+	siteFilesMu        sync.Mutex
+	archivePreview     siteArchivePreview
+	cachedSiteArchive  string
+	cachedSiteFiles    website.Files
 	now                func() time.Time
 	// sshAddr — адрес SSH ноды; nil — IP:22 (в тестах — локальный сервер)
 	sshAddr func(ip string) string
@@ -140,7 +145,8 @@ func (s *Server) Register(e *echo.Echo) {
 	api.PUT("/page-settings", s.savePageSettings, admin)
 	api.GET("/public-site", s.getPublicSite, admin)
 	api.PUT("/public-site", s.savePublicSite, admin, middleware.BodyLimit("1M"))
-	api.POST("/public-site/preview", previewPublicSite, admin, middleware.BodyLimit("1M"))
+	api.POST("/public-site/preview", s.previewPublicSite, admin, middleware.BodyLimit("1M"))
+	api.GET("/site-preview/:token/*", s.previewSiteFile, middleware.BodyLimit("1K"))
 
 	// Эндпоинты для агентов: авторизация по персональному токену ноды.
 	// Путь не секретный — он записан у агентов, — но без токена это обычная 404.

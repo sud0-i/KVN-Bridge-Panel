@@ -11,6 +11,9 @@ export const messages = {
     site: {
       title: 'Публичная страница', edit: 'Редактировать сайт', heading: 'Заголовок', intro: 'Вступление',
       html: 'HTML страницы', template: 'Настроить встроенный шаблон',
+      archive: 'ZIP со статическим сайтом', archiveSelected: 'Архив выбран', removeArchive: 'Убрать ZIP',
+      archiveSize: 'Выберите непустой ZIP размером до 512 КиБ.',
+      archiveHint: 'До 512 КиБ. Положите index.html в корень и используйте относительные пути к CSS, изображениям и шрифтам. Можно добавить favicon.ico и 404.html.',
       htmlHint: 'Вставьте HTML целиком, до 128 КиБ. CSS и изображения поддерживаются. JavaScript и формы отключены. Если поле пустое, используется шаблон.',
       theme: 'Оформление', paper: 'Светлое', slate: 'Тёмное', preview: 'Предпросмотр',
       publish: 'Опубликовать', published: 'Страница опубликована', rollback: 'Вернуть предыдущую версию',
@@ -354,6 +357,9 @@ export const messages = {
     site: {
       title: 'Public page', edit: 'Edit site', heading: 'Title', intro: 'Introduction',
       html: 'Page HTML', template: 'Customize the built-in template',
+      archive: 'Static site ZIP', archiveSelected: 'ZIP selected', removeArchive: 'Remove ZIP',
+      archiveSize: 'The Choose a non-empty ZIP up to 512 KiB.',
+      archiveHint: 'Up to 512 KiB. Put index.html at the root and use relative paths to CSS, images and fonts. favicon.ico and 404.html are optional.',
       htmlHint: 'Paste the HTML, up to 128 KiB. CSS and images are supported. JavaScript and forms are disabled. An empty field uses the template.',
       theme: 'Theme', paper: 'Light', slate: 'Dark', preview: 'Preview',
       publish: 'Publish', published: 'Page published', rollback: 'Restore previous version',

@@ -1,9 +1,13 @@
 package api
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -11,6 +15,78 @@ import (
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/runner"
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/website"
 )
+
+func makeSiteZIP(t *testing.T, files map[string]string) string {
+	t.Helper()
+	var buf bytes.Buffer
+	writer := zip.NewWriter(&buf)
+	for name, content := range files {
+		file, err := writer.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := file.Write([]byte(content)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return base64.StdEncoding.EncodeToString(buf.Bytes())
+}
+
+func TestPublishAndPreviewSiteArchive(t *testing.T) {
+	ev := hiddenEnv(t, "")
+	const path = "/s3cr3t-path/api/public-site"
+	login := ev.do("POST", "/s3cr3t-path/api/login", `{"password":"secret"}`, nil)
+	var session map[string]string
+	if login.Code != http.StatusOK || json.Unmarshal(login.Body.Bytes(), &session) != nil || session["token"] == "" {
+		t.Fatalf("login: %d", login.Code)
+	}
+	auth := map[string]string{"Authorization": "Bearer " + session["token"]}
+	files := map[string]string{
+		"index.html":      `<link href="assets/site.css" rel="stylesheet"><h1>Archived site</h1>`,
+		"assets/site.css": "h1 { color: rebeccapurple; }",
+		"404.html":        "<h1>Missing</h1>",
+	}
+	archive := makeSiteZIP(t, files)
+	payload, _ := json.Marshal(website.Settings{Archive: archive})
+	rec := ev.do("POST", path+"/preview", string(payload), auth)
+	var url map[string]string
+	if rec.Code != http.StatusOK || json.Unmarshal(rec.Body.Bytes(), &url) != nil || url["url"] == "" {
+		t.Fatalf("preview: %d %s", rec.Code, rec.Body)
+	}
+	for suffix, source := range map[string]string{"": "index.html", "assets/site.css": "assets/site.css"} {
+		if rec := ev.do("GET", url["url"]+suffix, "", nil); rec.Code != http.StatusOK || rec.Body.String() != files[source] {
+			t.Fatalf("preview %s: %d %s", suffix, rec.Code, rec.Body)
+		}
+	}
+	if rec := ev.do("GET", "/assets/site.css", "", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("preview changed published content: %d", rec.Code)
+	}
+	publish := func(value string) *httptest.ResponseRecorder {
+		body, _ := json.Marshal(map[string]website.Settings{"page": {Archive: value}})
+		return ev.do("PUT", path, string(body), auth)
+	}
+	if rec := publish(makeSiteZIP(t, map[string]string{"index.html": "OK", "../escape.html": "invalid"})); rec.Code != http.StatusBadRequest {
+		t.Fatalf("accepted ZIP with parent path: %d", rec.Code)
+	}
+	if rec := publish(archive); rec.Code != http.StatusOK {
+		t.Fatalf("publish: %d %s", rec.Code, rec.Body)
+	}
+	if rec := ev.do("GET", "/assets/site.css", "", nil); rec.Code != http.StatusOK || rec.Body.String() != files["assets/site.css"] {
+		t.Fatalf("asset: %d %s", rec.Code, rec.Body)
+	}
+	if rec := ev.do("GET", "/missing", "", nil); rec.Code != http.StatusNotFound || rec.Body.String() != files["404.html"] {
+		t.Fatalf("custom 404: %d %s", rec.Code, rec.Body)
+	}
+	if rec := ev.do("PUT", path, `{"rollback":true}`, auth); rec.Code != http.StatusOK {
+		t.Fatalf("rollback: %d %s", rec.Code, rec.Body)
+	}
+	if rec := ev.do("GET", "/assets/site.css", "", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("rolled back asset is still public: %d", rec.Code)
+	}
+}
 
 func TestPublishPublicSiteAndRollback(t *testing.T) {
 	ev := hiddenEnv(t, "")
@@ -66,10 +142,10 @@ func TestPublishHTMLToNode(t *testing.T) {
 		t.Fatal(err)
 	}
 	called := false
-	ev.s.provisionSelfSteal = func(_ context.Context, target, name, alias, page, _ string, _ runner.SSHRoute) error {
+	ev.s.provisionSelfSteal = func(_ context.Context, target, name, alias string, page website.Settings, _ string, _ runner.SSHRoute) error {
 		called = true
-		if target != ip || name != domain || alias != cdn || page != markup {
-			t.Fatalf("published %q to %s (%s, %s)", page, target, name, alias)
+		if target != ip || name != domain || alias != cdn || website.Render(page) != markup {
+			t.Fatalf("published %q to %s (%s, %s)", website.Render(page), target, name, alias)
 		}
 		return nil
 	}

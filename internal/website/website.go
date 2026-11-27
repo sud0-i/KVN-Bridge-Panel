@@ -24,15 +24,19 @@ const (
 var leadingDoctype = regexp.MustCompile(`(?i)^\s*<!doctype\s+html\s*>`)
 
 type Settings struct {
-	Title string `json:"title"`
-	Intro string `json:"intro"`
-	Theme string `json:"theme"`
-	HTML  string `json:"html,omitempty"`
+	Title   string `json:"title"`
+	Intro   string `json:"intro"`
+	Theme   string `json:"theme"`
+	HTML    string `json:"html,omitempty"`
+	Archive string `json:"archive,omitempty"`
 }
 
 func Default() Settings { return Settings{Title: defaultTitle, Intro: defaultIntro, Theme: "paper"} }
 
 func (s *Settings) Validate() error {
+	if s.Archive != "" {
+		s.HTML = ""
+	}
 	if strings.TrimSpace(s.HTML) == "" {
 		s.HTML = ""
 	}
@@ -41,7 +45,7 @@ func (s *Settings) Validate() error {
 	}
 	s.Title = strings.TrimSpace(s.Title)
 	s.Intro = strings.TrimSpace(s.Intro)
-	if s.HTML != "" {
+	if s.HTML != "" || s.Archive != "" {
 		if s.Title == "" {
 			s.Title = defaultTitle
 		}

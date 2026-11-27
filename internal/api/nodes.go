@@ -153,7 +153,7 @@ func (s *Server) createNode(c echo.Context) error {
 		NodeToken:       secrets.Token,
 		MasterURL:       s.cfg.MasterURL,
 		SelfStealDomain: newNode.SelfStealDomain,
-		SelfStealHTML:   s.publicSiteHTML(newNode),
+		SelfStealPage:   s.publicSiteSettings(newNode),
 		SSH:             sshRoute,
 		WarpTransit:     warpTransit,
 	})
@@ -378,7 +378,7 @@ func (s *Server) redeployNode(c echo.Context) error {
 		MasterURL:       s.cfg.MasterURL,
 		SelfStealDomain: node.SelfStealDomain,
 		SelfStealCDN:    node.CDNDomain,
-		SelfStealHTML:   s.publicSiteHTML(node),
+		SelfStealPage:   s.publicSiteSettings(node),
 		SSH:             sshRoute,
 		WarpTransit:     node.WarpTransit,
 	})

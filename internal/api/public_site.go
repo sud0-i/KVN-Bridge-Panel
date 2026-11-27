@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/models"
@@ -35,12 +36,12 @@ func (s *Server) publicSiteFor(ip string) (string, publicSiteState) {
 	return key, state
 }
 
-func (s *Server) publicSiteHTML(node models.Node) string {
+func (s *Server) publicSiteSettings(node models.Node) website.Settings {
 	if node.SelfStealDomain == "" {
-		return ""
+		return website.Settings{}
 	}
 	_, state := s.publicSiteFor(node.IP)
-	return website.Render(state.Current)
+	return state.Current
 }
 
 func (s *Server) getPublicSite(c echo.Context) error {
@@ -48,7 +49,7 @@ func (s *Server) getPublicSite(c echo.Context) error {
 	return c.JSON(http.StatusOK, state)
 }
 
-func previewPublicSite(c echo.Context) error {
+func (s *Server) previewPublicSite(c echo.Context) error {
 	var page website.Settings
 	if err := c.Bind(&page); err != nil {
 		return jsonError(c, http.StatusBadRequest, "Неверный формат")
@@ -56,8 +57,66 @@ func previewPublicSite(c echo.Context) error {
 	if err := page.Validate(); err != nil {
 		return jsonError(c, http.StatusBadRequest, err.Error())
 	}
+	if page.Archive != "" {
+		files, err := website.ReadArchive(page.Archive)
+		if err != nil {
+			return jsonError(c, http.StatusBadRequest, err.Error())
+		}
+		token := models.NewSubToken()
+		s.siteFilesMu.Lock()
+		s.archivePreview = siteArchivePreview{token: token, expires: s.now().Add(5 * time.Minute), files: files}
+		s.siteFilesMu.Unlock()
+		c.Response().Header().Set(echo.HeaderCacheControl, "no-store")
+		return c.JSON(http.StatusOK, map[string]string{"url": s.adminAPI() + "/site-preview/" + token + "/"})
+	}
 	c.Response().Header().Set("Content-Security-Policy", website.Policy)
 	return c.HTML(http.StatusOK, website.Preview(page))
+}
+
+type siteArchivePreview struct {
+	token   string
+	expires time.Time
+	files   website.Files
+}
+
+func (s *Server) previewSiteFile(c echo.Context) error {
+	s.siteFilesMu.Lock()
+	preview := s.archivePreview
+	if !s.now().Before(preview.expires) {
+		s.archivePreview = siteArchivePreview{}
+		preview = siteArchivePreview{}
+	}
+	s.siteFilesMu.Unlock()
+	if preview.token == "" || preview.token != c.Param("token") {
+		return notFound(c)
+	}
+	return serveSiteFile(c, preview.files, c.Param("*"))
+}
+
+func (s *Server) publishedArchive(encoded string) website.Files {
+	s.siteFilesMu.Lock()
+	defer s.siteFilesMu.Unlock()
+	if s.cachedSiteArchive != encoded {
+		s.cachedSiteArchive = encoded
+		s.cachedSiteFiles, _ = website.ReadArchive(encoded)
+	}
+	return s.cachedSiteFiles
+}
+
+func serveSiteFile(c echo.Context, files website.Files, name string) error {
+	h := c.Response().Header()
+	h.Set("Content-Security-Policy", website.ArchivePolicy)
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Access-Control-Allow-Origin", "*")
+	h.Set(echo.HeaderCacheControl, "no-store")
+	h.Set("Referrer-Policy", "no-referrer")
+	if data, mime, ok := files.Lookup(name); ok {
+		return c.Blob(http.StatusOK, mime, data)
+	}
+	if data, mime, ok := files.Lookup("404.html"); ok {
+		return c.Blob(http.StatusNotFound, mime, data)
+	}
+	return notFound(c)
 }
 
 func (s *Server) savePublicSite(c echo.Context) error {
@@ -84,6 +143,9 @@ func (s *Server) savePublicSite(c echo.Context) error {
 	if err := input.Page.Validate(); err != nil {
 		return jsonError(c, http.StatusBadRequest, err.Error())
 	}
+	if _, err := website.ReadArchive(input.Page.Archive); err != nil {
+		return jsonError(c, http.StatusBadRequest, err.Error())
+	}
 	if ip != "" {
 		var node models.Node
 		if err := s.db.First(&node, "ip = ?", ip).Error; err != nil {
@@ -100,7 +162,7 @@ func (s *Server) savePublicSite(c echo.Context) error {
 			return jsonError(c, http.StatusInternalServerError, "Ключ панели: "+err.Error())
 		}
 		err = s.provisionSelfSteal(context.WithoutCancel(c.Request().Context()), ip, node.SelfStealDomain,
-			node.CDNDomain, website.Render(input.Page), s.sshKey.path, route)
+			node.CDNDomain, input.Page, s.sshKey.path, route)
 		if err != nil {
 			return jsonError(c, http.StatusBadGateway, "Не удалось обновить сайт: "+err.Error())
 		}

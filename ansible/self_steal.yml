@@ -54,12 +54,36 @@
               root * /var/www/kvn-site/custom
               file_server
           }
+          @archive file {
+              root /var/www/kvn-site-archive/current
+              try_files /index.html
+          }
+          handle @archive {
+              header {
+                  Content-Security-Policy "sandbox; default-src 'none'; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' data: https:; base-uri 'none'; form-action 'none'"
+                  X-Content-Type-Options nosniff
+                  Cache-Control no-store
+                  Access-Control-Allow-Origin "*"
+              }
+              root * /var/www/kvn-site-archive/current
+              file_server
+          }
           handle {
               header Content-Security-Policy "sandbox; default-src 'none'; style-src 'unsafe-inline' https:; img-src data: https:; font-src data: https:; base-uri 'none'; form-action 'none'"
               root * /var/www/kvn-site
               file_server {
                   hide /var/www/kvn-site/custom
               }
+          }
+          handle_errors {
+              @missing file /{err.status_code}.html
+              handle @missing {
+                  header Content-Security-Policy "sandbox; default-src 'none'; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' data: https:; base-uri 'none'; form-action 'none'"
+                  header Cache-Control no-store
+                  rewrite /{err.status_code}.html
+                  file_server
+              }
+              respond "{err.status_text}" {err.status_code}
           }
       }
 
@@ -177,3 +201,36 @@
     content: "{{ (self_steal_site_b64 | b64decode) if self_steal_site_b64 else omit }}"
     dest: /var/www/kvn-site/index.html
     mode: "0644"
+  when: self_steal_archive_b64 | length == 0
+
+- name: Публикация архива
+  when: self_steal_archive_b64 | length > 0
+  block:
+    - name: Временный файл для архива
+      tempfile:
+        state: file
+      register: site_archive_file
+
+    - name: Загрузка архива на ноду
+      copy:
+        content: "{{ self_steal_archive_b64 }}"
+        dest: "{{ site_archive_file.path }}"
+        mode: "0600"
+      no_log: true
+
+    - name: Применение файлов сайта
+      script:
+        cmd: "files/publish-site.py {{ site_archive_file.path | quote }}"
+        executable: /usr/bin/python3
+  always:
+    - name: Удаление временного архива
+      file:
+        path: "{{ site_archive_file.path }}"
+        state: absent
+      when: site_archive_file.path is defined
+
+- name: Отключение архива при возврате к одиночной странице
+  file:
+    path: /var/www/kvn-site-archive/current
+    state: absent
+  when: self_steal_archive_b64 | length == 0

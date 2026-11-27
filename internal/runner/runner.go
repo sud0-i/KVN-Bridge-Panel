@@ -15,6 +15,7 @@ import (
 
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/db"
 	"github.com/sud0-i/KVN-Bridge-Panel/internal/models"
+	"github.com/sud0-i/KVN-Bridge-Panel/internal/website"
 )
 
 // DeployParams — всё, что нужно Ansible, чтобы поднять ноду
@@ -29,7 +30,7 @@ type DeployParams struct {
 	MasterURL       string
 	SelfStealDomain string
 	SelfStealCDN    string
-	SelfStealHTML   string
+	SelfStealPage   website.Settings
 	WarpTransit     bool
 	SSH             SSHRoute
 }
@@ -80,10 +81,12 @@ func run(p DeployParams) error {
 		"agent_src":             agentSrc,
 		"self_steal_domain":     p.SelfStealDomain,
 		"self_steal_cdn_domain": p.SelfStealCDN,
-		"self_steal_site_b64":   base64.StdEncoding.EncodeToString([]byte(p.SelfStealHTML)),
 		"node_ip":               p.IP,
 		"node_ssh_port":         p.SSH.PortString(),
 		"warp_transit":          fmt.Sprint(p.WarpTransit),
+	}
+	if err := setSiteVars(v, p.SelfStealPage); err != nil {
+		return err
 	}
 	if p.RootPassword != "" {
 		v["ansible_password"] = p.RootPassword
@@ -94,15 +97,30 @@ func run(p DeployParams) error {
 }
 
 // ProvisionSelfSteal runs only the web site tasks, without restarting Xray or the agent.
-func ProvisionSelfSteal(ctx context.Context, ip, domain, cdn, siteHTML, keyFile string, route SSHRoute) error {
-	return runPlaybook(ctx, ip, route, map[string]string{
+func ProvisionSelfSteal(ctx context.Context, ip, domain, cdn string, page website.Settings, keyFile string, route SSHRoute) error {
+	vars := map[string]string{
 		"ansible_user":                 "root",
 		"ansible_ssh_private_key_file": keyFile,
 		"self_steal_domain":            domain,
 		"self_steal_cdn_domain":        cdn,
-		"self_steal_site_b64":          base64.StdEncoding.EncodeToString([]byte(siteHTML)),
 		"node_ip":                      ip,
-	}, "--tags", "self-steal")
+	}
+	if err := setSiteVars(vars, page); err != nil {
+		return err
+	}
+	return runPlaybook(ctx, ip, route, vars, "--tags", "self-steal")
+}
+
+func setSiteVars(vars map[string]string, page website.Settings) error {
+	if page.Archive != "" {
+		if _, err := website.ReadArchive(page.Archive); err != nil {
+			return err
+		}
+		vars["self_steal_archive_b64"] = page.Archive
+	} else if page != (website.Settings{}) {
+		vars["self_steal_site_b64"] = base64.StdEncoding.EncodeToString([]byte(website.Render(page)))
+	}
+	return nil
 }
 
 // ProvisionWARP installs the proxy only. The existing node services keep running.

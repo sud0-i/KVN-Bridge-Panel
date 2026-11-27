@@ -15,6 +15,7 @@
     self_steal_domain: ""
     self_steal_cdn_domain: ""
     self_steal_site_b64: ""
+    self_steal_archive_b64: ""
     node_ssh_port: "22"
     warp_transit: "false"
 

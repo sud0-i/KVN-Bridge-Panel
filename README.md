@@ -90,6 +90,8 @@ Direct subscription profiles use the node’s site domain when no separate conne
 
 Use **Settings → Public page** to paste HTML or customize the built-in template. This sets the panel page and the default for new nodes. To publish directly to a node with its own domain, use **Edit site** in its SNI row, paste the HTML, and click **Publish**. Preview and rollback are available in the same dialog. The HTML field accepts up to 128 KiB. Inline CSS and HTTPS or embedded images are supported. JavaScript and form submissions are disabled.
 
+Choose **Upload ZIP** in either editor to publish a static site with local styles, images, fonts, and an optional custom `404.html`. Put `index.html` at the root of the archive and use relative links so assets also work in preview. The limits are 512 KiB for the ZIP and 3 MiB after extraction.
+
 After adding, changing or removing a CDN domain, use **Refresh site** in the node's SNI row. With Cloudflare SSL/TLS set to **Full**, `https://cdn.example.com/` serves the same page on port 443. The CDN origin must use port 443 for web requests. VPN clients still use port 8443 for CDN XHTTP.
 
 For a panel and bridge installed together before this change, copy the `http://{$DOMAIN}` redirect block from [Caddyfile.combined](Caddyfile.combined) into the deployed Caddyfile and reload Caddy. The panel image update keeps your deployed Caddyfile.

@@ -10,10 +10,45 @@ defineEmits(['close'])
 const state = ref(null)
 const page = ref(null)
 const preview = ref('')
+const previewURL = ref('')
 const busy = ref(false)
 const error = ref('')
 const message = ref('')
 const endpoint = 'api/public-site' + (props.node ? '?node=' + encodeURIComponent(props.node) : '')
+
+function clearPreview() {
+  preview.value = previewURL.value = ''
+}
+
+async function selectArchive(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  error.value = ''
+  if (!file.size || file.size > 512 * 1024) {
+    error.value = t('site.archiveSize')
+    return
+  }
+  busy.value = true
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    let binary = ''
+    for (let i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 8192))
+    }
+    page.value.archive = btoa(binary)
+    clearPreview()
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    busy.value = false
+  }
+}
+
+function clearArchive() {
+  page.value.archive = ''
+  clearPreview()
+}
 
 async function load(method, input) {
   const response = await apiCall(endpoint, { method, body: input ? JSON.stringify(input) : undefined })
@@ -29,12 +64,14 @@ async function apply(action) {
     if (action === 'load') {
       await load('GET')
     } else if (action === 'preview') {
+      clearPreview()
       const response = await apiCall('api/public-site/preview', { method: 'POST', body: JSON.stringify(page.value) })
       if (!response.ok) throw new Error(await readError(response))
-      preview.value = await response.text()
+      if (page.value.archive) previewURL.value = (await response.json()).url
+      else preview.value = await response.text()
     } else {
       await load('PUT', { page: page.value, rollback: action === 'rollback' })
-      preview.value = ''
+      clearPreview()
       message.value = t('site.published')
     }
   } catch (e) {
@@ -51,31 +88,41 @@ onMounted(() => apply('load'))
   <Sheet :title="t('site.title')" wide @close="!busy && $emit('close')">
     <p class="hint">{{ t(node ? 'site.nodeHint' : 'site.panelHint') }}</p>
     <fieldset v-if="page" :disabled="busy" class="flex flex-col gap-3">
-      <label class="label">{{ t('site.html') }}
-        <textarea v-model="page.html" rows="10" class="input mt-1 font-mono"
-          placeholder="<!doctype html>" spellcheck="false" aria-describedby="public-site-html-hint"
-          @input="preview = ''" />
+      <label class="label">{{ t('site.archive') }}
+        <input type="file" accept=".zip,application/zip" class="input mt-1" @change="selectArchive">
       </label>
-      <p id="public-site-html-hint" class="hint">{{ t('site.htmlHint') }}</p>
-      <details v-if="!page.html?.trim()" class="rounded-xl border border-line p-3">
-        <summary class="cursor-pointer text-sm">{{ t('site.template') }}</summary>
-        <div class="mt-3 flex flex-col gap-3">
-          <label class="label">{{ t('site.heading') }}
-            <input v-model="page.title" maxlength="80" class="input mt-1" @input="preview = ''">
-          </label>
-          <label class="label">{{ t('site.intro') }}
-            <textarea v-model="page.intro" maxlength="300" rows="3" class="input mt-1" @input="preview = ''" />
-          </label>
-          <label class="label">{{ t('site.theme') }}
-            <select v-model="page.theme" class="input mt-1" @change="preview = ''">
-              <option value="paper">{{ t('site.paper') }}</option>
-              <option value="slate">{{ t('site.slate') }}</option>
-            </select>
-          </label>
-        </div>
-      </details>
+      <p class="hint">{{ t('site.archiveHint') }}</p>
+      <div v-if="page.archive" class="flex items-center justify-between gap-2">
+        <span class="text-sm">{{ t('site.archiveSelected') }}</span>
+        <button type="button" class="btn" @click="clearArchive">{{ t('site.removeArchive') }}</button>
+      </div>
+      <template v-else>
+        <label class="label">{{ t('site.html') }}
+          <textarea v-model="page.html" rows="10" class="input mt-1 font-mono"
+            placeholder="<!doctype html>" spellcheck="false" aria-describedby="public-site-html-hint"
+            @input="preview = ''" />
+        </label>
+        <p id="public-site-html-hint" class="hint">{{ t('site.htmlHint') }}</p>
+        <details v-if="!page.html?.trim()" class="rounded-xl border border-line p-3">
+          <summary class="cursor-pointer text-sm">{{ t('site.template') }}</summary>
+          <div class="mt-3 flex flex-col gap-3">
+            <label class="label">{{ t('site.heading') }}
+              <input v-model="page.title" maxlength="80" class="input mt-1" @input="preview = ''">
+            </label>
+            <label class="label">{{ t('site.intro') }}
+              <textarea v-model="page.intro" maxlength="300" rows="3" class="input mt-1" @input="preview = ''" />
+            </label>
+            <label class="label">{{ t('site.theme') }}
+              <select v-model="page.theme" class="input mt-1" @change="preview = ''">
+                <option value="paper">{{ t('site.paper') }}</option>
+                <option value="slate">{{ t('site.slate') }}</option>
+              </select>
+            </label>
+          </div>
+        </details>
+      </template>
     </fieldset>
-    <iframe v-if="preview" :srcdoc="preview" :title="t('site.preview')" sandbox class="h-72 w-full rounded-xl border border-line" />
+    <iframe v-if="preview || previewURL" :srcdoc="preview || undefined" :src="previewURL || undefined" :title="t('site.preview')" sandbox class="h-72 w-full rounded-xl border border-line" />
     <p v-if="busy" role="status" class="hint">{{ t('loading') }}</p>
     <p v-if="error" role="alert" class="text-sm text-err">{{ error }}</p>
     <p v-if="message" role="status" class="text-sm text-ok">{{ message }}</p>
