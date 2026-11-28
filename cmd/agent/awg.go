@@ -178,19 +178,37 @@ func (a *agent) updateAWG(iface string) error {
 	if err := json.NewDecoder(res.Body).Decode(&desired); err != nil {
 		return err
 	}
-	current := make(map[string]bool, len(status.Peers))
-	for _, p := range status.Peers {
-		current[p.PublicKey] = true
+	allowedIPs, err := awgCommand("show", iface, "allowed-ips")
+	if err != nil {
+		return err
+	}
+	args, err := awgPeerArgs(iface, status.Address, allowedIPs, desired)
+	if err != nil {
+		return err
+	}
+	if len(args) > 2 {
+		_, err = awgCommand(args...)
+	}
+	return err
+}
+
+func awgPeerArgs(iface, address, allowedIPs string, desired []protocol.AWGPeer) ([]string, error) {
+	current := make(map[string]string)
+	for line := range strings.SplitSeq(allowedIPs, "\n") {
+		key, prefixes, ok := strings.Cut(line, "\t")
+		if ok {
+			current[key] = strings.TrimSpace(prefixes)
+		}
 	}
 	args := []string{"set", iface}
-	pool, _ := netip.ParsePrefix(status.Address)
+	pool, _ := netip.ParsePrefix(address)
 	for _, p := range desired {
 		ip, err := netip.ParseAddr(p.IP)
 		if err != nil || !ip.Is4() || !pool.Contains(ip) || ip == pool.Addr() || !protocol.AWGKeyValid(p.PublicKey) {
-			return fmt.Errorf("панель передала некорректный профиль AWG")
+			return nil, fmt.Errorf("панель передала некорректный профиль AWG")
 		}
-		if !current[p.PublicKey] {
-			args = append(args, "peer", p.PublicKey, "allowed-ips", p.IP+"/32", "advanced-security", "on")
+		if prefix := ip.String() + "/32"; current[p.PublicKey] != prefix {
+			args = append(args, "peer", p.PublicKey, "allowed-ips", prefix)
 		}
 		delete(current, p.PublicKey)
 	}
@@ -198,8 +216,5 @@ func (a *agent) updateAWG(iface string) error {
 	for pub := range current {
 		args = append(args, "peer", pub, "remove")
 	}
-	if len(args) > 2 {
-		_, err = awgCommand(args...)
-	}
-	return err
+	return args, nil
 }
