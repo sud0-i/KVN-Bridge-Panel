@@ -6,9 +6,6 @@ import (
 	"unicode"
 )
 
-const AWGLinkBridgeIP = "10.247.214.1"
-const AWGLinkExitIP = "10.247.214.2"
-
 // AWGStatus carries the public server profile and consecutive counter snapshots.
 type AWGStatus struct {
 	PublicKey string            `json:"public_key"`

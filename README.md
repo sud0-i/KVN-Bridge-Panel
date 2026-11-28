@@ -176,9 +176,7 @@ connections over one — sites open faster.
 
 The pilot uses a direct IPv4 tunnel to an exit node. On an online Debian or Ubuntu x86-64 exit node with the panel SSH key and `/dev/net/tun`, choose **Install AmneziaWG** on the node card. The panel deploys the bundled tools, creates the dedicated `kvnawg0` interface with fresh keys, selects an available UDP port and private subnet, and configures forwarding and outbound NAT for it. If your provider has a separate firewall, allow the selected UDP port there as well.
 
-When the card shows **Ready**, use **Users → AmneziaWG** to issue a one-time link to a device-specific `.conf`. The agent applies new devices and revocations on sync. Device bytes are added to the same quota as Xray, and a revoked device keeps its traffic history. An existing dedicated AWG 3.1 interface can still be managed by setting `AWG_INTERFACE` in the agent environment.
-
-In the beta channel, **Nodes → AmneziaWG server link** sets up a separate tunnel for a bridge and a selected working exit. Both need the panel SSH key and XHTTP must be enabled. Allow UDP 51824 from the bridge IP in the exit host firewall. Xray probes the AWG route before selecting it and falls back to the standard cascade if the tunnel fails.
+When the card shows **Ready**, use **Users → AmneziaWG** to issue a one-time link to a device-specific `.conf`. The agent applies new devices and revocations on sync. Device bytes are added to the same quota as Xray, and a revoked device keeps its traffic history. An existing dedicated AWG 3.1 interface can still be managed by setting `AWG_INTERFACE` in the agent environment. The AWG cascade is a separate step.
 
 The Routing section:
 

@@ -240,27 +240,6 @@ func Build(s protocol.SyncResponse, privateKey string) ([]byte, error) {
 				"strategy":    obj{"type": "random"},
 				"fallbackTag": fallback,
 			})
-			cascadeBalancer := "exits"
-			for _, e := range s.Exits {
-				if e.AWGXHTTPPath == "" {
-					continue
-				}
-				const awg = "awg-exit"
-				const fallback = "route-standard-exits"
-				e.Address, e.Port, e.CDN, e.XHTTPPath = protocol.AWGLinkExitIP, 443, "", e.AWGXHTTPPath
-				awgOutbound := exitOutbound(awg, e, s.Fingerprint)
-				awgOutbound["sendThrough"] = protocol.AWGLinkBridgeIP
-				outbounds = append(outbounds, awgOutbound, obj{
-					"tag": fallback, "protocol": "loopback", "settings": obj{"inboundTag": fallback},
-				})
-				selectors = append(selectors, awg)
-				balancers = append(balancers, obj{
-					"tag": awg, "selector": []string{awg}, "strategy": obj{"type": "leastPing"}, "fallbackTag": fallback,
-				})
-				rules = append([]obj{{"type": "field", "inboundTag": []string{fallback}, "balancerTag": "exits"}}, rules...)
-				cascadeBalancer = awg
-				break
-			}
 			observatory = obj{
 				"subjectSelector": selectors,
 				"pingConfig": obj{
@@ -273,7 +252,7 @@ func Build(s protocol.SyncResponse, privateKey string) ([]byte, error) {
 			rules = append(rules, obj{
 				"type":        "field",
 				"inboundTag":  userInbounds,
-				"balancerTag": cascadeBalancer,
+				"balancerTag": "exits",
 			})
 		}
 		// Если выходных нод нет — трафик уйдёт в первый outbound ("direct"), а правила

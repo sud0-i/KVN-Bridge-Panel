@@ -150,8 +150,6 @@ type Exit struct {
 	// CDN — домен экзита за CDN: мост подключается к нему через CDN (XHTTP поверх TLS),
 	// а не напрямую по IP. Работает, когда прямой канал до экзита режут.
 	CDN string `json:"cdn,omitempty"`
-	// The alternate XHTTP target reachable only over the inter-server AWG link.
-	AWGXHTTPPath string `json:"awg_xhttp_path,omitempty"`
 }
 
 // UserTraffic — прирост трафика пользователя с момента прошлого отчёта

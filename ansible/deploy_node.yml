@@ -166,11 +166,6 @@
       block:
         - import_tasks: awg.yml
 
-    - name: Межсерверный туннель AmneziaWG
-      tags: [never, awg-link]
-      block:
-        - import_tasks: awg_link.yml
-
     - name: Настройка фаервола (API Xray слушает только localhost, его не открываем)
       ufw:
         rule: allow

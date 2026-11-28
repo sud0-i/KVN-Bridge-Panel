@@ -47,7 +47,6 @@ type Server struct {
 	deploy             func(runner.DeployParams)
 	provisionSelfSteal func(context.Context, string, string, string, website.Settings, string, runner.SSHRoute) error
 	provisionWARP      func(context.Context, string, string, runner.SSHRoute) error
-	provisionAWGLink   func(context.Context, string, string, runner.SSHRoute, string, string, string, string) error
 	provisionAWG       func(context.Context, string, string, runner.SSHRoute) error
 	restoreMu          sync.Mutex
 	awgIssueMu         sync.Mutex
@@ -75,7 +74,7 @@ func New(cfg Config, db *gorm.DB) *Server {
 	}
 	return &Server{cfg: cfg, db: db, deploy: func(p runner.DeployParams) { go runner.DeployNode(p) }, now: time.Now,
 		agentBin: &agentBinary{path: bin}, sshKey: &masterKey{path: keyPath}, provisionSelfSteal: runner.ProvisionSelfSteal,
-		provisionWARP: runner.ProvisionWARP, provisionAWG: runner.ProvisionAWG, provisionAWGLink: runner.ProvisionAWGLink}
+		provisionWARP: runner.ProvisionWARP, provisionAWG: runner.ProvisionAWG}
 }
 
 // Register вешает все роуты на Echo
@@ -115,8 +114,6 @@ func (s *Server) Register(e *echo.Echo) {
 	api.POST("/nodes/:ip/self-steal", s.enableSelfSteal, admin)
 	api.POST("/nodes/:ip/install-warp", s.installBridgeWARP, admin)
 	api.POST("/nodes/:ip/install-awg", s.installAWG, admin)
-	api.GET("/awg-link", s.getAWGLink, admin)
-	api.PUT("/awg-link", s.setAWGLink, admin, middleware.BodyLimit("2K"))
 	api.POST("/nodes/:ip/redeploy", s.redeployNode, admin)
 	api.DELETE("/nodes/:ip", s.deleteNode, admin)
 
