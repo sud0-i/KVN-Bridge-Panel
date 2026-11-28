@@ -1,0 +1,144 @@
+---
+- name: Установка AmneziaWG для связи серверов
+  when: awg_link_state == 'present'
+  block:
+    - name: Сетевые зависимости
+      apt:
+        name: [iproute2, nftables, ufw]
+        state: present
+        cache_valid_time: 3600
+
+    - name: Каталог службы
+      file:
+        path: /etc/kvn-awg-link
+        state: directory
+        mode: "0700"
+
+    - name: Бинарники AmneziaWG
+      copy:
+        src: "{{ awg_binaries }}/{{ item }}"
+        dest: "/etc/kvn-awg-link/{{ item }}"
+        mode: "0700"
+      loop: [awg, amneziawg-go]
+
+    - name: Скрипт службы
+      copy:
+        src: files/kvn-awg-link
+        dest: /etc/kvn-awg-link/service
+        validate: /bin/sh -n %s
+        mode: "0700"
+
+    - name: Внутренний адрес и роль
+      copy:
+        dest: /etc/kvn-awg-link/address
+        content: "{{ awg_link_address }} {{ awg_link_role }}\n"
+        mode: "0600"
+
+    - name: Параметры туннеля
+      copy:
+        dest: /etc/kvn-awg-link/peer.conf
+        content: "{{ awg_link_conf }}"
+        mode: "0600"
+      no_log: true
+
+    - name: UDP-порт туннеля на выходной ноде
+      ufw:
+        rule: allow
+        from_ip: "{{ awg_link_bridge_ip }}"
+        port: "51824"
+        proto: udp
+        comment: KVN AmneziaWG link
+      when: awg_link_role == 'exit'
+
+    - name: TCP-порт Xray внутри туннеля
+      ufw:
+        rule: allow
+        direction: in
+        interface: kvnawglink
+        from_ip: 10.247.214.1
+        to_ip: 10.247.214.2
+        port: "443"
+        proto: tcp
+        comment: KVN AmneziaWG link
+      when: awg_link_role == 'exit'
+
+    - name: Служба межсерверного туннеля
+      copy:
+        dest: /etc/systemd/system/kvn-awg-link.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=KVN AmneziaWG inter-server tunnel
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          ExecStart=/etc/kvn-awg-link/amneziawg-go -f kvnawglink
+          ExecStartPost=/etc/kvn-awg-link/service up
+          ExecStopPost=/etc/kvn-awg-link/service down
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Применение туннеля
+      systemd:
+        name: kvn-awg-link
+        enabled: yes
+        daemon_reload: yes
+        state: restarted
+
+    - name: Проверка TCP до Xray на ноде
+      wait_for:
+        host: 10.247.214.2
+        port: 443
+        timeout: 15
+      when: awg_link_role == 'bridge'
+
+- name: Удаление межсерверного туннеля
+  when: awg_link_state == 'absent'
+  block:
+    - name: Наличие службы
+      stat:
+        path: /etc/systemd/system/kvn-awg-link.service
+      register: awg_link_unit
+
+    - name: Остановка службы
+      systemd:
+        name: kvn-awg-link
+        enabled: no
+        state: stopped
+      when: awg_link_unit.stat.exists
+
+    - name: Удаление правила UDP
+      ufw:
+        rule: allow
+        from_ip: "{{ awg_link_bridge_ip }}"
+        port: "51824"
+        proto: udp
+        delete: yes
+      when: awg_link_role == 'exit'
+
+    - name: Удаление правила TCP
+      ufw:
+        rule: allow
+        direction: in
+        interface: kvnawglink
+        from_ip: 10.247.214.1
+        to_ip: 10.247.214.2
+        port: "443"
+        proto: tcp
+        delete: yes
+      when: awg_link_role == 'exit'
+
+    - name: Удаление конфигурации туннеля
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/kvn-awg-link.service
+        - /etc/kvn-awg-link
+
+    - name: Обновление systemd
+      systemd:
+        daemon_reload: yes

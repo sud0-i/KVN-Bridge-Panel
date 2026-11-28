@@ -140,6 +140,12 @@ func (s *Server) sync(c echo.Context) error {
 		if len(exits) == 0 {
 			resp.Warp = routing.exitWarp()
 		}
+		var awgExit string
+		if routing.XHTTP && len(exits) == 1 {
+			if link, err := s.awgLink(); err == nil && link.Enabled && link.Bridge == node.IP {
+				awgExit = link.Exit
+			}
+		}
 		for _, e := range exits {
 			exit := protocol.Exit{
 				Address:   e.IP,
@@ -155,6 +161,9 @@ func (s *Server) sync(c echo.Context) error {
 			// XHTTP-вход на экзите есть, только если XHTTP включён
 			case (routing.ExitLink == ExitLinkXHTTP || routing.ExitLink == ExitLinkCDN) && routing.XHTTP:
 				exit.XHTTPPath = e.XHTTPPath
+			}
+			if e.IP == awgExit {
+				exit.AWGXHTTPPath = e.XHTTPPath
 			}
 			resp.Exits = append(resp.Exits, exit)
 		}

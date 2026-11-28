@@ -148,6 +148,27 @@ func ProvisionAWG(ctx context.Context, ip, keyFile string, route SSHRoute) error
 	}, "--tags", "install-awg")
 }
 
+func ProvisionAWGLink(ctx context.Context, ip, keyFile string, route SSHRoute, role, address, bridgeIP, config string) error {
+	dir, err := absPath(envOr("AWG_BINARIES", "build/awg_linux_amd64"))
+	if err != nil {
+		return err
+	}
+	state := "absent"
+	if config != "" {
+		state = "present"
+	}
+	return runPlaybook(ctx, ip, route, map[string]string{
+		"ansible_user":                 "root",
+		"ansible_ssh_private_key_file": keyFile,
+		"awg_binaries":                 dir,
+		"awg_link_state":               state,
+		"awg_link_role":                role,
+		"awg_link_address":             address,
+		"awg_link_bridge_ip":           bridgeIP,
+		"awg_link_conf":                config,
+	}, "--tags", "awg-link")
+}
+
 func runPlaybook(ctx context.Context, ip string, route SSHRoute, v map[string]string, options ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 	defer cancel()

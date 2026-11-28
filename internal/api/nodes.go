@@ -405,6 +405,17 @@ func newSecrets() (nodeSecrets, error) {
 }
 
 func (s *Server) deleteNode(c echo.Context) error {
+	if _, busy := s.awgJobs.LoadOrStore(awgLinkSettingKey, struct{}{}); busy {
+		return jsonError(c, http.StatusConflict, "Дождитесь настройки туннеля AWG")
+	}
+	defer s.awgJobs.Delete(awgLinkSettingKey)
+	link, err := s.awgLink()
+	if err != nil {
+		return jsonError(c, http.StatusInternalServerError, "Ошибка чтения туннеля AWG")
+	}
+	if ip := c.Param("ip"); ip != "" && (link.Bridge == ip || link.Exit == ip) {
+		return jsonError(c, http.StatusConflict, "Сначала отключите межсерверный туннель AWG")
+	}
 	res := s.db.Where("ip = ?", c.Param("ip")).Delete(&models.Node{})
 	if res.Error != nil {
 		return jsonError(c, http.StatusInternalServerError, "DB error")

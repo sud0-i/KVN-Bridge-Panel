@@ -7,11 +7,11 @@ import Sheet from '../ui/Sheet.vue'
 import Terminal from '../ui/Terminal.vue'
 import NodeDiagnostics from '../ui/NodeDiagnostics.vue'
 import PublicSite from '../ui/PublicSite.vue'
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { t } from '../i18n'
 import { nodes, loadingNodes, routing, agentSHA, agentPending, xrayPending, nodeName, ago, fmtDateTime, bridges, exits,
   openDeploy, openRedeploy, editSNI, editLabel, editCDN, deleteNode, links, linksRange, fetchLinks,
-  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes, isLocalBridge, enableSelfSteal, setWarpTransit, installBridgeWARP, setHy2PublicTLS, installNodeAWG } from '../store'
+  metrics, metricsOf, fetchMetrics, nodeAction, hasPanelKey, terminalFor, setKeysOnly, sniScanOf, startSNIScan, applySNI, fetchNodes, isLocalBridge, enableSelfSteal, setWarpTransit, installBridgeWARP, setHy2PublicTLS, installNodeAWG, apiCall, readError } from '../store'
 
 const emit = defineEmits(['go'])
 
@@ -70,6 +70,34 @@ const actionList = (n) => ['restart-xray', ...(n.MieruVersion ? ['restart-mieru'
 const runAction = async (n, a) => { actionsFor.value = null; await nodeAction(n, a) }
 const warpInstall = ref({})
 const awgInstall = ref({})
+const awgLink = ref(null)
+const awgLinkBridge = ref('')
+const awgLinkBusy = ref(false)
+const awgLinkError = ref('')
+async function fetchAWGLink(input) {
+  const response = await apiCall('api/awg-link', input ? { method: 'PUT', body: JSON.stringify(input) } : {})
+  if (!response.ok) throw new Error(await readError(response))
+  awgLink.value = await response.json()
+}
+onMounted(async () => {
+  try { await fetchAWGLink() } catch (error) { awgLinkError.value = error.message }
+})
+async function setAWGLink(enabled) {
+  awgLinkBusy.value = true
+  awgLinkError.value = ''
+  try {
+    await fetchAWGLink({
+      enabled,
+      bridge: awgLink.value?.bridge || awgLinkBridge.value,
+      exit: awgLink.value?.exit || exits.value[0]?.IP,
+    })
+  } catch (error) {
+    awgLinkError.value = error.message
+    try { await fetchAWGLink() } catch { /* Keep the original error. */ }
+  } finally {
+    awgLinkBusy.value = false
+  }
+}
 const awgReady = (n) => Date.now() - Date.parse(n.AWGSeen) < 180000
 async function installAWG(node) {
   awgInstall.value[node.IP] = { busy: true, error: '', done: false }
@@ -149,6 +177,26 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
 <template>
   <div class="flex flex-col gap-4 sm:gap-6">
     <div v-if="loadingNodes && !nodes.length" class="text-mute">{{ t('loading') }}</div>
+
+    <section v-if="(awgLink?.bridge || (awgLink && routing?.xhttp && exits.length === 1 && bridges.some(hasPanelKey))) || awgLinkError" class="card flex flex-col gap-3">
+      <h2 class="font-semibold">{{ t('awg.linkTitle') }}</h2>
+      <p v-if="awgLink?.bridge" class="text-sm text-mute">
+        {{ awgLink.bridge }} → {{ awgLink.exit }} · {{ t(awgLink.enabled ? 'awg.linkEnabled' : 'awg.linkPending') }}
+      </p>
+      <div class="flex flex-wrap items-center gap-2">
+        <select v-if="!awgLink?.bridge && exits.length === 1" v-model="awgLinkBridge" class="input max-w-xs" :aria-label="t('awg.linkBridge')">
+          <option value="" disabled>{{ t('awg.linkBridge') }}</option>
+          <option v-for="bridge in bridges.filter(hasPanelKey)" :key="bridge.IP" :value="bridge.IP">{{ nodeName(bridge) }}</option>
+        </select>
+        <button v-if="awgLink && !awgLink.enabled" type="button" class="btn" :disabled="awgLinkBusy || !(awgLink.bridge || awgLinkBridge)" @click="setAWGLink(true)">
+          {{ t(awgLinkBusy ? 'loading' : 'awg.linkEnable') }}
+        </button>
+        <button v-if="awgLink?.bridge" type="button" class="btn btn-secondary" :disabled="awgLinkBusy" @click="setAWGLink(false)">
+          {{ t('awg.linkDisable') }}
+        </button>
+      </div>
+      <p v-if="awgLinkError" role="alert" class="text-sm text-err break-words">{{ awgLinkError }}</p>
+    </section>
 
     <div class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
       <section v-for="n in nodes" :key="n.IP" class="card">
