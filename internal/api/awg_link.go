@@ -101,13 +101,9 @@ func (s *Server) setAWGLink(c echo.Context) error {
 		}
 	}
 	if request.Enabled {
-		exits, err := s.cascadeExits()
-		if err != nil {
-			return jsonError(c, http.StatusInternalServerError, "Ошибка чтения нод")
-		}
-		if len(exits) != 1 || exits[0].IP != exit.IP || !s.isAlive(bridge) || !s.isAlive(exit) ||
+		if !s.isAlive(bridge) || !s.isAlive(exit) ||
 			!s.loadRouting().XHTTP || exit.XHTTPPath == "" || bridge.LinkUUID == "" {
-			return jsonError(c, http.StatusBadRequest, "Нужны подключённый мост, одна работающая выходная нода и включённый XHTTP")
+			return jsonError(c, http.StatusBadRequest, "Нужны подключённые мост и выходная нода с включённым XHTTP")
 		}
 	}
 	bridgeRoute, err := s.nodeSSHRoute(bridge.IP, bridge.SSHPort, bridge.SSHViaBridge)

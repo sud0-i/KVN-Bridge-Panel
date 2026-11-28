@@ -2,7 +2,7 @@ import { ref } from 'vue'
 
 export const messages = {
   ru: {
-    awg: { linkTitle: 'Межсерверный туннель AmneziaWG', linkBridge: 'Выбери мост', linkEnable: 'Настроить AWG', linkDisable: 'Отключить туннель', linkEnabled: 'маршрут настроен', linkPending: 'маршрут выключен', node: 'Выходная нода', device: 'Имя устройства', issue: 'Выдать профиль', copy: 'Копировать',
+    awg: { linkTitle: 'Межсерверный туннель AmneziaWG', linkBridge: 'Выбери мост', linkExit: 'Выбери выходную ноду', linkPriority: 'Выбранная нода станет приоритетной через AWG. При отказе включится обычный каскад.', linkRequirements: 'Для настройки включи XHTTP и подключи мост и выходную ноду с SSH-ключом панели.', linkEnable: 'Настроить AWG', linkDisable: 'Отключить туннель', linkEnabled: 'маршрут настроен', linkPending: 'маршрут выключен', node: 'Выходная нода', device: 'Имя устройства', issue: 'Выдать профиль', copy: 'Копировать',
       invite: 'Одноразовая ссылка на .conf, действует 15 минут', handshake: 'Рукопожатие',
       revoke: 'Отозвать', revoked: 'Отозван', reload: 'Обновить',
       install: 'Установить AmneziaWG', installing: 'Установка…', ready: 'Готов',
@@ -348,7 +348,7 @@ export const messages = {
     warpNote: 'WARP ставится на выходные ноды при деплое. Если на ноде он не поднялся, этот трафик уходит с IP ноды — смотрите значок WARP во вкладке «Серверы».'
   },
   en: {
-    awg: { linkTitle: 'AmneziaWG server link', linkBridge: 'Select a bridge', linkEnable: 'Set up AWG', linkDisable: 'Disable tunnel', linkEnabled: 'route configured', linkPending: 'route off', node: 'Exit node', device: 'Device name', issue: 'Issue profile', copy: 'Copy',
+    awg: { linkTitle: 'AmneziaWG server link', linkBridge: 'Select a bridge', linkExit: 'Select an exit node', linkPriority: 'AWG to the selected exit takes priority. The standard cascade is the fallback.', linkRequirements: 'Enable XHTTP and connect a bridge and an exit with the panel SSH key.', linkEnable: 'Set up AWG', linkDisable: 'Disable tunnel', linkEnabled: 'route configured', linkPending: 'route off', node: 'Exit node', device: 'Device name', issue: 'Issue profile', copy: 'Copy',
       invite: 'Single-use .conf link, valid for 15 minutes', handshake: 'Last handshake',
       revoke: 'Revoke', revoked: 'Revoked', reload: 'Refresh',
       install: 'Install AmneziaWG', installing: 'Installing…', ready: 'Ready',

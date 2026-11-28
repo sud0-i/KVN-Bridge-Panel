@@ -19,6 +19,7 @@ func TestAWGLinkPublishesOnlyAfterProvisioning(t *testing.T) {
 	const exit = "203.0.113.12"
 	bridgeToken := ev.addNode(bridge, protocol.RoleBridge)
 	ev.syncAs(ev.addNode(exit, protocol.RoleExit))
+	ev.syncAs(ev.addNode("203.0.113.13", protocol.RoleExit))
 	ev.syncAs(bridgeToken)
 	if err := ev.db.Model(&models.Node{}).Where("ip IN ?", []string{bridge, exit}).Update("ssh_state", "keys").Error; err != nil {
 		t.Fatal(err)
@@ -50,14 +51,14 @@ func TestAWGLinkPublishesOnlyAfterProvisioning(t *testing.T) {
 	if rec := ev.do("PUT", path, enable, admin); rec.Code != http.StatusBadGateway {
 		t.Fatalf("failed install: %d %s", rec.Code, rec.Body)
 	}
-	if exits := ev.syncAs(bridgeToken).Exits; len(exits) != 1 || exits[0].AWGXHTTPPath != "" {
+	if exits := ev.syncAs(bridgeToken).Exits; len(exits) != 2 || exits[0].AWGXHTTPPath != "" || exits[1].AWGXHTTPPath != "" {
 		t.Fatalf("published after failed install: %v", exits)
 	}
 	failBridge = false
 	if rec := ev.do("PUT", path, enable, admin); rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "PrivateKey") {
 		t.Fatalf("successful install: %d %s", rec.Code, rec.Body)
 	}
-	if exits := ev.syncAs(bridgeToken).Exits; len(exits) != 1 || exits[0].AWGXHTTPPath == "" {
+	if exits := ev.syncAs(bridgeToken).Exits; len(exits) != 2 || exits[0].Address != exit || exits[0].AWGXHTTPPath == "" || exits[1].AWGXHTTPPath != "" {
 		t.Fatalf("did not publish AWG path: %v", exits)
 	}
 	if rec := ev.do("PUT", path, `{"enabled":false}`, admin); rec.Code != http.StatusOK {

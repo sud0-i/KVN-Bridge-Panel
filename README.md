@@ -178,7 +178,7 @@ The pilot uses a direct IPv4 tunnel to an exit node. On an online Debian or Ubun
 
 When the card shows **Ready**, use **Users → AmneziaWG** to issue a one-time link to a device-specific `.conf`. The agent applies new devices and revocations on sync. Device bytes are added to the same quota as Xray, and a revoked device keeps its traffic history. An existing dedicated AWG 3.1 interface can still be managed by setting `AWG_INTERFACE` in the agent environment.
 
-In the beta channel, **Nodes → AmneziaWG server link** sets up a separate tunnel for a bridge and a single working exit. Both need the panel SSH key and XHTTP must be enabled. Allow UDP 51824 from the bridge IP in the exit host firewall. Xray probes the AWG route before selecting it and falls back to the standard cascade if the tunnel fails.
+In the beta channel, **Nodes → AmneziaWG server link** sets up a separate tunnel for a bridge and a selected working exit. Both need the panel SSH key and XHTTP must be enabled. Allow UDP 51824 from the bridge IP in the exit host firewall. Xray probes the AWG route before selecting it and falls back to the standard cascade if the tunnel fails.
 
 The Routing section:
 

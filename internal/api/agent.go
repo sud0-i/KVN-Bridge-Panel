@@ -141,7 +141,7 @@ func (s *Server) sync(c echo.Context) error {
 			resp.Warp = routing.exitWarp()
 		}
 		var awgExit string
-		if routing.XHTTP && len(exits) == 1 {
+		if routing.XHTTP && len(exits) > 0 {
 			if link, err := s.awgLink(); err == nil && link.Enabled && link.Bridge == node.IP {
 				awgExit = link.Exit
 			}

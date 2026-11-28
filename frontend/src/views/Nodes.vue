@@ -72,6 +72,10 @@ const warpInstall = ref({})
 const awgInstall = ref({})
 const awgLink = ref(null)
 const awgLinkBridge = ref('')
+const awgLinkExit = ref('')
+const awgLinkBridges = computed(() => bridges.value.filter(n => n.IsOnline && hasPanelKey(n)))
+const awgLinkExits = computed(() => exits.value.filter(n => n.IsOnline && hasPanelKey(n)))
+const canSetAWGLink = computed(() => routing.value?.xhttp && awgLinkBridges.value.length && awgLinkExits.value.length)
 const awgLinkBusy = ref(false)
 const awgLinkError = ref('')
 async function fetchAWGLink(input) {
@@ -89,7 +93,7 @@ async function setAWGLink(enabled) {
     await fetchAWGLink({
       enabled,
       bridge: awgLink.value?.bridge || awgLinkBridge.value,
-      exit: awgLink.value?.exit || exits.value[0]?.IP,
+      exit: awgLink.value?.exit || awgLinkExit.value,
     })
   } catch (error) {
     awgLinkError.value = error.message
@@ -178,23 +182,28 @@ const pendingAgents = () => nodes.value.filter(agentPending).length
   <div class="flex flex-col gap-4 sm:gap-6">
     <div v-if="loadingNodes && !nodes.length" class="text-mute">{{ t('loading') }}</div>
 
-    <section v-if="(awgLink?.bridge || (awgLink && routing?.xhttp && exits.length === 1 && bridges.some(hasPanelKey))) || awgLinkError" class="card flex flex-col gap-3">
+    <section v-if="awgLink || awgLinkError" class="card flex flex-col gap-3">
       <h2 class="font-semibold">{{ t('awg.linkTitle') }}</h2>
       <p v-if="awgLink?.bridge" class="text-sm text-mute">
         {{ awgLink.bridge }} → {{ awgLink.exit }} · {{ t(awgLink.enabled ? 'awg.linkEnabled' : 'awg.linkPending') }}
       </p>
       <div class="flex flex-wrap items-center gap-2">
-        <select v-if="!awgLink?.bridge && exits.length === 1" v-model="awgLinkBridge" class="input max-w-xs" :aria-label="t('awg.linkBridge')">
+        <select v-if="!awgLink?.bridge && canSetAWGLink" v-model="awgLinkBridge" class="input max-w-xs" :aria-label="t('awg.linkBridge')">
           <option value="" disabled>{{ t('awg.linkBridge') }}</option>
-          <option v-for="bridge in bridges.filter(hasPanelKey)" :key="bridge.IP" :value="bridge.IP">{{ nodeName(bridge) }}</option>
+          <option v-for="bridge in awgLinkBridges" :key="bridge.IP" :value="bridge.IP">{{ nodeName(bridge) }}</option>
         </select>
-        <button v-if="awgLink && !awgLink.enabled" type="button" class="btn" :disabled="awgLinkBusy || !(awgLink.bridge || awgLinkBridge)" @click="setAWGLink(true)">
+        <select v-if="!awgLink?.bridge && canSetAWGLink" v-model="awgLinkExit" class="input max-w-xs" :aria-label="t('awg.linkExit')">
+          <option value="" disabled>{{ t('awg.linkExit') }}</option>
+          <option v-for="exit in awgLinkExits" :key="exit.IP" :value="exit.IP">{{ nodeName(exit) }}</option>
+        </select>
+        <button v-if="awgLink && !awgLink.enabled && (awgLink.bridge || canSetAWGLink)" type="button" class="btn" :disabled="awgLinkBusy || !(awgLink.bridge || (awgLinkBridge && awgLinkExit))" @click="setAWGLink(true)">
           {{ t(awgLinkBusy ? 'loading' : 'awg.linkEnable') }}
         </button>
         <button v-if="awgLink?.bridge" type="button" class="btn btn-secondary" :disabled="awgLinkBusy" @click="setAWGLink(false)">
           {{ t('awg.linkDisable') }}
         </button>
       </div>
+      <p v-if="awgLink && !awgLink.bridge" class="text-sm text-mute">{{ t(canSetAWGLink ? 'awg.linkPriority' : 'awg.linkRequirements') }}</p>
       <p v-if="awgLinkError" role="alert" class="text-sm text-err break-words">{{ awgLinkError }}</p>
     </section>
 
